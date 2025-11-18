@@ -1,0 +1,20 @@
+{
+  "template_id": "premium_bordereaux_2",
+  "name": "Premium Bordereaux Template 2",
+  "carrier": "Sample Carrier",
+  "file_type": "premium",
+  "pattern": null,
+  "column_mappings": {
+    "Policy Ref": "policy_number",
+    "Insured Party": "insured_name",
+    "Cover Start": "inception_date",
+    "Cover End": "expiry_date",
+    "Gross Premium": "premium_amount",
+    "CCY": "currency",
+    "Net Premium": "net_premium",
+    "Broker Name": "broker_name",
+    "Product": "product_type"
+  },
+  "version": "1.0",
+  "active_flag": true
+}

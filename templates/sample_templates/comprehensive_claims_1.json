@@ -1,0 +1,20 @@
+{
+  "template_id": "comprehensive_claims_1",
+  "name": "Comprehensive Claims Template 1",
+  "carrier": "Sample Carrier",
+  "file_type": "claims",
+  "pattern": null,
+  "column_mappings": {
+    "POL_NUM": "policy_number",
+    "INSURED_NAME": "insured_name",
+    "INCEPT_DATE": "inception_date",
+    "EXPIRY_DATE": "expiry_date",
+    "PREMIUM_AMT": "premium_amount",
+    "CURR": "currency",
+    "CLAIM_AMOUNT": "claim_amount",
+    "COMMISSION": "commission_amount",
+    "BROKER": "broker_name"
+  },
+  "version": "1.0",
+  "active_flag": true
+}

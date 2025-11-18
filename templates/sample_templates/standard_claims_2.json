@@ -1,0 +1,19 @@
+{
+  "template_id": "standard_claims_2",
+  "name": "Standard Claims Template 2",
+  "carrier": "Sample Carrier",
+  "file_type": "claims",
+  "pattern": null,
+  "column_mappings": {
+    "Policy #": "policy_number",
+    "Client Name": "insured_name",
+    "Start Date": "inception_date",
+    "End Date": "expiry_date",
+    "Premium": "premium_amount",
+    "Curr": "currency",
+    "Claims": "claim_amount",
+    "Commission": "commission_amount"
+  },
+  "version": "1.0",
+  "active_flag": true
+}

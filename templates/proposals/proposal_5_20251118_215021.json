@@ -1,0 +1,44 @@
+{
+  "file_id": 5,
+  "created_at": "2025-11-18T21:50:21.556222",
+  "file_headers": [
+    "pol_num",
+    "insured_name",
+    "incept_date",
+    "expiry_date",
+    "premium_amt",
+    "curr",
+    "claim_amount",
+    "commission",
+    "abc",
+    "broker",
+    "q1"
+  ],
+  "column_mappings": {
+    "pol_num": "policy_number",
+    "insured_name": "insured_name",
+    "incept_date": "inception_date",
+    "expiry_date": "expiry_date",
+    "premium_amt": "premium_amount",
+    "curr": "currency",
+    "claim_amount": "claim_amount",
+    "commission": "commission_amount",
+    "broker": "broker_name"
+  },
+  "confidence_scores": {
+    "pol_num": 0.6409999999999999,
+    "insured_name": 1.0,
+    "incept_date": 0.7018695652173912,
+    "expiry_date": 0.7409999999999999,
+    "premium_amt": 0.9608695652173913,
+    "curr": 0.97,
+    "claim_amount": 1.0,
+    "commission": 0.97,
+    "broker": 0.97
+  },
+  "metadata": {
+    "filename": "test1.xlsx",
+    "sender": "web_upload",
+    "subject": "Web Upload"
+  }
+}

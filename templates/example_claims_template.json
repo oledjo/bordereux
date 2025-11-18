@@ -1,0 +1,38 @@
+{
+  "template_id": "example_claims_template",
+  "name": "Example Claims Bordereaux Template",
+  "carrier": "Example Insurance Co.",
+  "file_type": "claims",
+  "pattern": {
+    "required_columns": [
+      "policy_number",
+      "claim_number",
+      "claim_amount",
+      "claim_date"
+    ],
+    "optional_columns": [
+      "description",
+      "status"
+    ]
+  },
+  "column_mappings": {
+    "Policy No": "policy_number",
+    "Policy Number": "policy_number",
+    "Policy #": "policy_number",
+    "Claim No": "claim_number",
+    "Claim Number": "claim_number",
+    "Claim #": "claim_number",
+    "Amount": "claim_amount",
+    "Claim Amount": "claim_amount",
+    "Total": "claim_amount",
+    "Date": "claim_date",
+    "Claim Date": "claim_date",
+    "Loss Date": "claim_date",
+    "Description": "description",
+    "Status": "status",
+    "Claim Status": "status"
+  },
+  "version": "1.0.0",
+  "active_flag": true
+}
+

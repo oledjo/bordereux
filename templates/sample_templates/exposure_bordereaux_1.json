@@ -1,0 +1,19 @@
+{
+  "template_id": "exposure_bordereaux_1",
+  "name": "Exposure Bordereaux Template 1",
+  "carrier": "Sample Carrier",
+  "file_type": "exposure",
+  "pattern": null,
+  "column_mappings": {
+    "Policy Number": "policy_number",
+    "Insured": "insured_name",
+    "Inception": "inception_date",
+    "Expiry": "expiry_date",
+    "Sum Insured": "premium_amount",
+    "Currency": "currency",
+    "Location": "risk_location",
+    "Coverage": "coverage_type"
+  },
+  "version": "1.0",
+  "active_flag": true
+}

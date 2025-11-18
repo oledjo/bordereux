@@ -1,0 +1,18 @@
+{
+  "template_id": "standard_claims_1",
+  "name": "Standard Claims Template 1",
+  "carrier": "Sample Carrier",
+  "file_type": "claims",
+  "pattern": null,
+  "column_mappings": {
+    "Policy Number": "policy_number",
+    "Insured Name": "insured_name",
+    "Inception Date": "inception_date",
+    "Expiry Date": "expiry_date",
+    "Premium Amount": "premium_amount",
+    "Currency": "currency",
+    "Claim Amount": "claim_amount"
+  },
+  "version": "1.0",
+  "active_flag": true
+}

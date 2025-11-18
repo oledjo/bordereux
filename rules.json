@@ -1,0 +1,40 @@
+{
+  "required_fields": [
+    "policy_number"
+  ],
+  "date_rules": [
+    {
+      "name": "inception_before_expiry",
+      "inception_field": "inception_date",
+      "expiry_field": "expiry_date",
+      "message": "Inception date must be before or equal to expiry date"
+    }
+  ],
+  "numeric_rules": [
+    {
+      "name": "premium_non_negative",
+      "field": "premium_amount",
+      "min_value": 0,
+      "message": "Premium amount must be greater than or equal to 0"
+    },
+    {
+      "name": "claim_non_negative",
+      "field": "claim_amount",
+      "min_value": 0,
+      "message": "Claim amount must be greater than or equal to 0"
+    },
+    {
+      "name": "commission_non_negative",
+      "field": "commission_amount",
+      "min_value": 0,
+      "message": "Commission amount must be greater than or equal to 0"
+    },
+    {
+      "name": "net_premium_non_negative",
+      "field": "net_premium",
+      "min_value": 0,
+      "message": "Net premium must be greater than or equal to 0"
+    }
+  ]
+}
+

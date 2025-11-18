@@ -1,0 +1,20 @@
+{
+  "template_id": "test1",
+  "name": "test1 Template",
+  "carrier": "web_upload",
+  "file_type": "claims",
+  "pattern": null,
+  "column_mappings": {
+    "pol_num": "policy_number",
+    "insured_name": "insured_name",
+    "incept_date": "inception_date",
+    "expiry_date": "expiry_date",
+    "premium_amt": "premium_amount",
+    "curr": "currency",
+    "claim_amount": "claim_amount",
+    "commission": "commission_amount",
+    "brok": "broker_name"
+  },
+  "version": "1.0.0",
+  "active_flag": true
+}

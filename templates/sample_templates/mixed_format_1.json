@@ -1,0 +1,21 @@
+{
+  "template_id": "mixed_format_1",
+  "name": "Mixed Format Template 1",
+  "carrier": "Sample Carrier",
+  "file_type": "premium",
+  "pattern": null,
+  "column_mappings": {
+    "POLICY": "policy_number",
+    "INSURED_NAME": "insured_name",
+    "START_DATE": "inception_date",
+    "END_DATE": "expiry_date",
+    "PREMIUM": "premium_amount",
+    "CUR": "currency",
+    "NET": "net_premium",
+    "BROKER_NAME": "broker_name",
+    "PRODUCT": "product_type",
+    "COVERAGE": "coverage_type"
+  },
+  "version": "1.0",
+  "active_flag": true
+}

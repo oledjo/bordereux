@@ -1,0 +1,20 @@
+{
+  "template_id": "exposure_detailed_1",
+  "name": "Exposure Detailed Template 1",
+  "carrier": "Sample Carrier",
+  "file_type": "exposure",
+  "pattern": null,
+  "column_mappings": {
+    "Policy #": "policy_number",
+    "Client": "insured_name",
+    "Cover Start Date": "inception_date",
+    "Cover End Date": "expiry_date",
+    "Exposure Value": "premium_amount",
+    "Currency": "currency",
+    "Risk Location": "risk_location",
+    "Coverage Type": "coverage_type",
+    "Product": "product_type"
+  },
+  "version": "1.0",
+  "active_flag": true
+}

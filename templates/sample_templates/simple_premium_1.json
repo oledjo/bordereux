@@ -1,0 +1,17 @@
+{
+  "template_id": "simple_premium_1",
+  "name": "Simple Premium Template 1",
+  "carrier": "Sample Carrier",
+  "file_type": "premium",
+  "pattern": null,
+  "column_mappings": {
+    "Policy": "policy_number",
+    "Name": "insured_name",
+    "Start": "inception_date",
+    "End": "expiry_date",
+    "Amount": "premium_amount",
+    "CCY": "currency"
+  },
+  "version": "1.0",
+  "active_flag": true
+}
