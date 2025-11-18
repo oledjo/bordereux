@@ -79,7 +79,7 @@ async def list_files(
                 reprocess_cell = ""
                 if file.status == FileStatus.NEW_TEMPLATE_REQUIRED:
                     edit_mappings_cell = f'<a href="/mappings/file/{file.id}" class="mappings-link" style="color: #007bff; text-decoration: none;">📋 Edit Mappings</a>'
-                    reprocess_cell = f'<button onclick="reprocessFile({file.id}, {json.dumps(file.filename)})" class="btn-reprocess">🔄 Reprocess</button>'
+                    reprocess_cell = f'<button onclick="reprocessFile(this, {file.id}, {json.dumps(file.filename)})" class="btn-reprocess">🔄 Reprocess</button>'
                 else:
                     edit_mappings_cell = "-"
                     reprocess_cell = "-"
@@ -95,10 +95,13 @@ async def list_files(
                     <td>{file.created_at.strftime("%Y-%m-%d %H:%M") if file.created_at else "N/A"}</td>
                     <td style="text-align: center;">{edit_mappings_cell}</td>
                     <td style="text-align: center;">{reprocess_cell}</td>
+                    <td style="text-align: center;">
+                        <button onclick="deleteFile(this, {file.id}, {json.dumps(file.filename)})" class="btn-delete">Delete</button>
+                    </td>
                 </tr>
                 '''
         else:
-            files_rows = '<tr><td colspan="9"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No files found</p></div></td></tr>'
+            files_rows = '<tr><td colspan="10"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No files found</p></div></td></tr>'
         
         html_content = f'''
         <!DOCTYPE html>
@@ -234,6 +237,24 @@ async def list_files(
                     cursor: not-allowed;
                     opacity: 0.6;
                 }}
+                .btn-delete {{
+                    padding: 6px 12px;
+                    background: #dc3545;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: 600;
+                }}
+                .btn-delete:hover {{
+                    background: #c82333;
+                }}
+                .btn-delete:disabled {{
+                    background: #6c757d;
+                    cursor: not-allowed;
+                    opacity: 0.6;
+                }}
                 .empty-state {{
                     text-align: center;
                     padding: 60px 20px;
@@ -280,6 +301,7 @@ async def list_files(
                             <th>Created</th>
                             <th>Edit Mappings</th>
                             <th>Reprocess</th>
+                            <th>Delete</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -298,7 +320,7 @@ async def list_files(
                     window.location.href = '/files?' + params.toString();
                 }}
                 
-                async function reprocessFile(fileId, filename) {{
+                async function reprocessFile(button, fileId, filename) {{
                     const confirmed = confirm(`Reprocess file "${{filename}}"?\\n\\nThis will attempt to match the file with an existing template and process it.`);
                     
                     if (!confirmed) {{
@@ -306,7 +328,6 @@ async def list_files(
                     }}
                     
                     // Disable button and show loading state
-                    const button = event.target;
                     const originalText = button.innerHTML;
                     button.disabled = true;
                     button.innerHTML = '⏳ Processing...';
@@ -332,6 +353,52 @@ async def list_files(
                         }}
                     }} catch (error) {{
                         alert(`Error reprocessing file: ${{error.message}}`);
+                        button.disabled = false;
+                        button.innerHTML = originalText;
+                    }}
+                }}
+                
+                async function deleteFile(button, fileId, filename) {{
+                    const confirmed = confirm(`Are you sure you want to delete the file "${{filename}}"?\\n\\nThis will permanently delete the file and all associated data. This action cannot be undone.`);
+                    
+                    if (!confirmed) {{
+                        return;
+                    }}
+                    
+                    // Disable button and show loading state
+                    const originalText = button.innerHTML;
+                    button.disabled = true;
+                    button.innerHTML = '⏳';
+                    
+                    try {{
+                        const response = await fetch(`/files/${{fileId}}/delete`, {{
+                            method: 'DELETE',
+                            headers: {{
+                                'Content-Type': 'application/json',
+                            }}
+                        }});
+                        
+                        if (response.ok) {{
+                            // Remove the row from table
+                            const row = button.closest('tr');
+                            row.style.opacity = '0.5';
+                            row.style.transition = 'opacity 0.3s';
+                            setTimeout(() => {{
+                                row.remove();
+                                // Check if table is now empty
+                                const tbody = document.querySelector('table tbody');
+                                if (tbody && tbody.children.length === 0) {{
+                                    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No files found</p></div></td></tr>';
+                                }}
+                            }}, 300);
+                        }} else {{
+                            const error = await response.json();
+                            alert(`Error deleting file: ${{error.detail || 'Unknown error'}}`);
+                            button.disabled = false;
+                            button.innerHTML = originalText;
+                        }}
+                    }} catch (error) {{
+                        alert(`Error deleting file: ${{error.message}}`);
                         button.disabled = false;
                         button.innerHTML = originalText;
                     }}
@@ -403,6 +470,39 @@ async def list_files_api(
     except Exception as e:
         logger.error("Error listing files", error=str(e))
         raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+
+
+@router.delete("/{file_id}/delete")
+async def delete_file(
+    file_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete a bordereaux file."""
+    bordereaux_file = db.query(BordereauxFile).filter(BordereauxFile.id == file_id).first()
+    
+    if not bordereaux_file:
+        raise HTTPException(status_code=404, detail=f"File with ID {file_id} not found")
+    
+    filename = bordereaux_file.filename
+    
+    logger.info("Deleting file", file_id=file_id, filename=filename)
+    
+    # Delete file using storage service
+    deleted = storage_service.delete_file(db, file_id)
+    
+    if not deleted:
+        raise HTTPException(status_code=500, detail="Failed to delete file")
+    
+    logger.info("File deleted successfully", file_id=file_id, filename=filename)
+    
+    # Return success response
+    return JSONResponse(
+        content={
+            "success": True,
+            "message": f"File '{filename}' deleted successfully"
+        },
+        status_code=200
+    )
 
 
 @router.get("/upload", response_class=HTMLResponse)

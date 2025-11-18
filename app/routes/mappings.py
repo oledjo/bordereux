@@ -551,11 +551,35 @@ async def list_templates(
                 font-size: 48px;
                 margin-bottom: 10px;
             }}
+            .header-actions {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }}
+            .btn-back {{
+                padding: 10px 20px;
+                background: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                text-decoration: none;
+                font-weight: 600;
+                display: inline-block;
+                transition: all 0.2s;
+            }}
+            .btn-back:hover {{
+                background: #545b62;
+                transform: translateY(-2px);
+            }}
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>📋 Templates & Mappings</h1>
+            <div class="header-actions">
+                <h1>📋 Templates & Mappings</h1>
+                <a href="/" class="btn-back">← Back to Home</a>
+            </div>
             <table>
                 <thead>
                     <tr>
