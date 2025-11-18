@@ -134,8 +134,24 @@ async def list_files(
                 }}
                 .header-actions {{
                     display: flex;
-                    gap: 10px;
+                    justify-content: space-between;
                     align-items: center;
+                    margin-bottom: 20px;
+                }}
+                .btn-back {{
+                    padding: 10px 20px;
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    text-decoration: none;
+                    font-weight: 600;
+                    display: inline-block;
+                    transition: all 0.2s;
+                }}
+                .btn-back:hover {{
+                    background: #545b62;
+                    transform: translateY(-2px);
                 }}
                 .btn {{
                     padding: 10px 20px;
@@ -268,13 +284,14 @@ async def list_files(
         </head>
         <body>
             <div class="container">
-                <h1>
-                    <span>📄 Bordereaux Files</span>
-                    <div class="header-actions">
+                <div class="header-actions">
+                    <h1>📄 Bordereaux Files</h1>
+                    <div>
                         <a href="/mappings" class="btn btn-secondary" style="margin-right: 10px;">📋 Templates</a>
-                        <a href="/files/upload" class="btn btn-primary">+ Upload File</a>
+                        <a href="/files/upload" class="btn btn-primary" style="margin-right: 10px;">+ Upload File</a>
+                        <a href="/" class="btn-back">← Back to Home</a>
                     </div>
-                </h1>
+                </div>
                 
                 <div class="filters">
                     <div class="filter-group">
@@ -676,11 +693,29 @@ async def upload_page():
             .link:hover {
                 text-decoration: underline;
             }
+            .btn-back {
+                padding: 10px 20px;
+                background: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                text-decoration: none;
+                font-weight: 600;
+                display: inline-block;
+                transition: all 0.2s;
+            }
+            .btn-back:hover {
+                background: #545b62;
+                transform: translateY(-2px);
+            }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>📄 Upload Bordereaux File</h1>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h1>📄 Upload Bordereaux File</h1>
+                <a href="/" class="btn-back">← Back to Home</a>
+            </div>
             <p class="subtitle">Upload an Excel or CSV file to process</p>
             
             <form id="uploadForm" enctype="multipart/form-data">

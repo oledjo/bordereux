@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Depends, Query, Form, Request
+from fastapi import APIRouter, HTTPException, Depends, Query, Form, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -430,6 +430,423 @@ async def save_mappings_as_template(
 
 
 
+@router.get("/upload", response_class=HTMLResponse)
+async def upload_template_page():
+    """Serve the template upload page."""
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Upload Template</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 20px;
+            }
+            .container {
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                padding: 40px;
+                max-width: 600px;
+                width: 100%;
+            }
+            h1 {
+                color: #333;
+                margin-bottom: 10px;
+                font-size: 28px;
+            }
+            .subtitle {
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 14px;
+            }
+            .upload-area {
+                border: 2px dashed #ddd;
+                border-radius: 8px;
+                padding: 40px;
+                text-align: center;
+                transition: all 0.3s ease;
+                cursor: pointer;
+                background: #f9f9f9;
+            }
+            .upload-area:hover {
+                border-color: #667eea;
+                background: #f0f0ff;
+            }
+            .upload-area.dragover {
+                border-color: #667eea;
+                background: #e8e8ff;
+            }
+            .upload-icon {
+                font-size: 48px;
+                color: #667eea;
+                margin-bottom: 15px;
+            }
+            .upload-text {
+                color: #666;
+                margin-bottom: 10px;
+                font-size: 16px;
+            }
+            .upload-hint {
+                color: #999;
+                font-size: 12px;
+            }
+            input[type="file"] {
+                display: none;
+            }
+            .file-info {
+                margin-top: 20px;
+                padding: 15px;
+                background: #f0f0f0;
+                border-radius: 6px;
+                display: none;
+            }
+            .file-info.show {
+                display: block;
+            }
+            .file-name {
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 5px;
+            }
+            .file-size {
+                color: #666;
+                font-size: 14px;
+            }
+            button {
+                width: 100%;
+                padding: 15px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-top: 20px;
+                transition: all 0.3s ease;
+            }
+            button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            }
+            button:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+                transform: none;
+            }
+            .back-link {
+                display: inline-block;
+                margin-top: 20px;
+                color: #667eea;
+                text-decoration: none;
+                font-size: 14px;
+            }
+            .back-link:hover {
+                text-decoration: underline;
+            }
+            .error {
+                margin-top: 15px;
+                padding: 12px;
+                background: #fee;
+                border: 1px solid #fcc;
+                border-radius: 6px;
+                color: #c33;
+                display: none;
+            }
+            .error.show {
+                display: block;
+            }
+            .success {
+                margin-top: 15px;
+                padding: 12px;
+                background: #efe;
+                border: 1px solid #cfc;
+                border-radius: 6px;
+                color: #3c3;
+                display: none;
+            }
+            .success.show {
+                display: block;
+            }
+            .example-link {
+                margin-top: 20px;
+                padding: 15px;
+                background: #f8f9fa;
+                border-radius: 6px;
+                font-size: 12px;
+                color: #666;
+            }
+            .example-link code {
+                background: #e9ecef;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📤 Upload Template</h1>
+            <p class="subtitle">Upload a template JSON file to add it to the system</p>
+            
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">Click to select or drag and drop</div>
+                <div class="upload-hint">JSON template file</div>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".json" />
+            
+            <div class="file-info" id="fileInfo">
+                <div class="file-name" id="fileName"></div>
+                <div class="file-size" id="fileSize"></div>
+            </div>
+            
+            <div class="error" id="errorMessage"></div>
+            <div class="success" id="successMessage"></div>
+            
+            <button id="uploadButton" onclick="uploadTemplate()" disabled>Upload Template</button>
+            
+            <a href="/mappings" class="back-link">← Back to Templates</a>
+            
+            <div class="example-link">
+                <strong>Template JSON Format:</strong><br>
+                <code>template_id</code>, <code>name</code>, <code>file_type</code> (claims/premium/exposure), 
+                <code>column_mappings</code> (source → canonical), <code>carrier</code> (optional), 
+                <code>version</code> (optional), <code>active_flag</code> (optional)
+            </div>
+        </div>
+        
+        <script>
+            const fileInput = document.getElementById('fileInput');
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const uploadButton = document.getElementById('uploadButton');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            let selectedFile = null;
+            
+            fileInput.addEventListener('change', function(e) {
+                handleFileSelect(e.target.files[0]);
+            });
+            
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileSelect(e.dataTransfer.files[0]);
+                }
+            });
+            
+            function handleFileSelect(file) {
+                if (!file) return;
+                
+                if (!file.name.endsWith('.json')) {
+                    showError('Please select a JSON file');
+                    return;
+                }
+                
+                selectedFile = file;
+                fileName.textContent = file.name;
+                fileSize.textContent = formatFileSize(file.size);
+                fileInfo.classList.add('show');
+                uploadButton.disabled = false;
+                hideError();
+                hideSuccess();
+            }
+            
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            }
+            
+            async function uploadTemplate() {
+                if (!selectedFile) {
+                    showError('Please select a file first');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                
+                uploadButton.disabled = true;
+                uploadButton.textContent = 'Uploading...';
+                hideError();
+                hideSuccess();
+                
+                try {
+                    const response = await fetch('/mappings/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        showSuccess(`Template "${result.template.name}" uploaded successfully! Redirecting...`);
+                        setTimeout(() => {
+                            window.location.href = '/mappings';
+                        }, 2000);
+                    } else {
+                        showError(result.detail || 'Error uploading template');
+                        uploadButton.disabled = false;
+                        uploadButton.textContent = 'Upload Template';
+                    }
+                } catch (error) {
+                    showError('Error uploading template: ' + error.message);
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Upload Template';
+                }
+            }
+            
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.add('show');
+            }
+            
+            function hideError() {
+                errorMessage.classList.remove('show');
+            }
+            
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.classList.add('show');
+            }
+            
+            function hideSuccess() {
+                successMessage.classList.remove('show');
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@router.post("/upload")
+async def upload_template(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """Upload a template from a JSON file."""
+    logger = get_structured_logger(__name__)
+    
+    try:
+        # Read file content
+        content = await file.read()
+        
+        # Parse JSON
+        try:
+            template_data = json.loads(content.decode('utf-8'))
+        except json.JSONDecodeError as e:
+            logger.error("Invalid JSON in template file", error=str(e))
+            raise HTTPException(status_code=400, detail=f"Invalid JSON file: {str(e)}")
+        
+        # Validate required fields
+        required_fields = ['template_id', 'name', 'file_type', 'column_mappings']
+        missing_fields = [field for field in required_fields if field not in template_data]
+        if missing_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required fields: {', '.join(missing_fields)}"
+            )
+        
+        # Check if template already exists
+        existing_template = template_repository.get_by_id(db, template_data['template_id'])
+        if existing_template:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Template with ID '{template_data['template_id']}' already exists"
+            )
+        
+        # Validate file_type
+        try:
+            file_type = FileType(template_data['file_type'])
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file_type: {template_data['file_type']}. Must be one of: claims, premium, exposure"
+            )
+        
+        # Validate column_mappings
+        if not isinstance(template_data['column_mappings'], dict):
+            raise HTTPException(
+                status_code=400,
+                detail="column_mappings must be a dictionary"
+            )
+        
+        # Create TemplateCreate object
+        template_create = TemplateCreate(
+            template_id=template_data['template_id'],
+            name=template_data['name'],
+            carrier=template_data.get('carrier'),
+            file_type=file_type,
+            pattern=template_data.get('pattern'),
+            column_mappings=template_data['column_mappings'],
+            version=template_data.get('version', '1.0.0'),
+            active_flag=template_data.get('active_flag', True),
+        )
+        
+        # Create template
+        created_template = template_repository.create(db, template_create)
+        
+        logger.info(
+            "Template uploaded successfully",
+            template_id=created_template.template_id,
+            name=created_template.name
+        )
+        
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": f"Template '{created_template.name}' uploaded successfully",
+                "template": {
+                    "id": created_template.id,
+                    "template_id": created_template.template_id,
+                    "name": created_template.name,
+                    "carrier": created_template.carrier,
+                    "file_type": created_template.file_type,
+                }
+            },
+            status_code=201
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error uploading template", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error uploading template: {str(e)}")
+
+
 @router.get("/", response_class=HTMLResponse)
 async def list_templates(
     skip: int = Query(0, ge=0),
@@ -578,7 +995,10 @@ async def list_templates(
         <div class="container">
             <div class="header-actions">
                 <h1>📋 Templates & Mappings</h1>
-                <a href="/" class="btn-back">← Back to Home</a>
+                <div>
+                    <a href="/mappings/upload" class="btn-link" style="margin-right: 10px; background: #28a745; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; display: inline-block;">📤 Upload Template</a>
+                    <a href="/" class="btn-back">← Back to Home</a>
+                </div>
             </div>
             <table>
                 <thead>
