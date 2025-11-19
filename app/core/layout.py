@@ -23,19 +23,16 @@ def get_sidebar_html(current_page: Optional[str] = None) -> str:
         </div>
         <nav class="sidebar-nav">
             <a href="/files" class="nav-item {files_active}">
-                <span class="nav-icon">📄</span>
                 <span class="nav-text">Files</span>
             </a>
             <a href="/mappings" class="nav-item {templates_active}">
-                <span class="nav-icon">📋</span>
                 <span class="nav-text">Templates</span>
             </a>
+            <div class="nav-separator"></div>
             <button onclick="openModal('upload-file-modal')" class="nav-item {upload_active}">
-                <span class="nav-icon">⬆️</span>
                 <span class="nav-text">Upload File</span>
             </button>
             <button onclick="openModal('upload-template-modal')" class="nav-item {upload_template_active}">
-                <span class="nav-icon">📤</span>
                 <span class="nav-text">Upload Template</span>
             </button>
         </nav>
@@ -105,14 +102,13 @@ def get_layout_css() -> str:
         border-left-color: #003781;
         font-weight: 500;
     }
-    .nav-icon {
-        font-size: 18px;
-        margin-right: 12px;
-        width: 24px;
-        text-align: center;
-    }
     .nav-text {
         font-size: 14px;
+    }
+    .nav-separator {
+        height: 1px;
+        background: #e9ecef;
+        margin: 12px 20px;
     }
     .main-content {
         flex: 1;

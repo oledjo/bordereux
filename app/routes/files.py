@@ -601,7 +601,6 @@ async def upload_file_modal():
                 color: #495057;
                 margin-bottom: 10px;
                 font-size: 16px;
-                font-weight: 500;
             }
             .upload-hint {
                 color: #6c757d;
@@ -630,7 +629,7 @@ async def upload_file_modal():
                 color: #6c757d;
                 font-size: 14px;
             }
-            button[type="submit"] {
+            button#uploadButton {
                 width: 100%;
                 padding: 14px;
                 background: #003781;
@@ -643,68 +642,86 @@ async def upload_file_modal():
                 margin-top: 20px;
                 transition: all 0.2s ease;
             }
-            button[type="submit"]:hover:not(:disabled) {
+            button#uploadButton:hover:not(:disabled) {
                 background: #002d66;
             }
-            button[type="submit"]:disabled {
+            button#uploadButton:disabled {
                 background: #6c757d;
-                opacity: 0.6;
                 cursor: not-allowed;
+                opacity: 0.6;
             }
-            .progress {
-                margin-top: 20px;
-                display: none;
-            }
-            .progress.show {
-                display: block;
-            }
-            .progress-bar {
-                width: 100%;
-                height: 8px;
-                background: #e9ecef;
-                border-radius: 4px;
-                overflow: hidden;
-            }
-            .progress-fill {
-                height: 100%;
-                background: #003781;
-                width: 0%;
-                transition: width 0.3s ease;
-            }
-            .result {
-                margin-top: 20px;
-                padding: 16px;
-                border-radius: 4px;
-                display: none;
-            }
-            .result.show {
-                display: block;
-            }
-            .result.success {
-                background: #d1e7dd;
-                border: 1px solid #badbcc;
-                color: #0f5132;
-            }
-            .result.error {
+            .error {
+                margin-top: 15px;
+                padding: 12px;
                 background: #f8d7da;
                 border: 1px solid #f1aeb5;
+                border-radius: 4px;
                 color: #842029;
+                display: none;
             }
-            .result-info {
+            .error.show {
+                display: block;
+            }
+            .success {
                 margin-top: 15px;
+                padding: 12px;
+                background: #d1e7dd;
+                border: 1px solid #badbcc;
+                border-radius: 4px;
+                color: #0f5132;
+                display: none;
+            }
+            .success.show {
+                display: block;
+            }
+            .files-list {
+                margin-top: 20px;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            .files-list-header {
+                font-weight: 600;
+                color: #003781;
+                margin-bottom: 10px;
                 font-size: 14px;
             }
-            .result-info p {
-                margin: 5px 0;
+            .file-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 12px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                margin-bottom: 8px;
             }
-            .link {
-                color: #003781;
-                text-decoration: none;
+            .file-item .file-name {
+                flex: 1;
                 font-weight: 500;
+                color: #003781;
+                font-size: 14px;
+                margin-right: 10px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
-            .link:hover {
-                text-decoration: underline;
-                color: #002d66;
+            .file-item .file-size {
+                color: #6c757d;
+                font-size: 12px;
+                margin-right: 10px;
+            }
+            .file-item .file-remove {
+                background: none;
+                border: none;
+                color: #dc3545;
+                font-size: 20px;
+                cursor: pointer;
+                padding: 0 5px;
+                line-height: 1;
+                transition: color 0.2s;
+            }
+            .file-item .file-remove:hover {
+                color: #bb2d3b;
             }
             """
     
@@ -716,88 +733,127 @@ async def upload_file_modal():
         <div class="modal-body">
             <p class="subtitle">Upload an Excel or CSV file to process</p>
             
-            <form id="uploadForm" enctype="multipart/form-data">
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-icon">📁</div>
-                    <div class="upload-text">Click to select or drag and drop</div>
-                    <div class="upload-hint">Supports .xlsx, .xls, and .csv files</div>
-                    <input type="file" id="fileInput" name="file" accept=".xlsx,.xls,.csv" required>
-                </div>
-                
-                <div class="file-info" id="fileInfo">
-                    <div class="file-name" id="fileName"></div>
-                    <div class="file-size" id="fileSize"></div>
-                </div>
-                
-                <div class="progress" id="progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
-                    </div>
-                </div>
-                
-                <button type="submit" id="submitBtn">Upload and Process</button>
-            </form>
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">Click to select or drag and drop</div>
+                <div class="upload-hint">Supports .xlsx, .xls, and .csv files (multiple files allowed)</div>
+            </div>
             
-            <div class="result" id="result"></div>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" multiple />
+            
+            <div class="files-list" id="filesList"></div>
+            
+            <div class="error" id="errorMessage"></div>
+            <div class="success" id="successMessage"></div>
+            
+            <button id="uploadButton" onclick="uploadFiles()" disabled>Upload and Process</button>
         </div>
         <style>
             {modal_css}
         </style>
         <script>
             (function() {{
-                // Wait for DOM to be ready
                 setTimeout(function() {{
-                    const uploadArea = document.getElementById('uploadArea');
                     const fileInput = document.getElementById('fileInput');
-                    const fileInfo = document.getElementById('fileInfo');
-                    const fileName = document.getElementById('fileName');
-                    const fileSize = document.getElementById('fileSize');
-                    const uploadForm = document.getElementById('uploadForm');
-                    const submitBtn = document.getElementById('submitBtn');
-                    const progress = document.getElementById('progress');
-                    const progressFill = document.getElementById('progressFill');
-                    const result = document.getElementById('result');
+                    const uploadArea = document.getElementById('uploadArea');
+                    const filesList = document.getElementById('filesList');
+                    const uploadButton = document.getElementById('uploadButton');
+                    const errorMessage = document.getElementById('errorMessage');
+                    const successMessage = document.getElementById('successMessage');
                     
-                    if (!uploadArea || !fileInput || !uploadForm) {{
-                        console.error('Modal elements not found');
+                    if (!fileInput || !uploadArea || !filesList || !uploadButton) {{
+                        console.error('Required elements not found');
                         return;
                     }}
                     
-                    // Click to select file
-                    uploadArea.addEventListener('click', () => fileInput.click());
+                    let selectedFiles = [];
                     
-                    // Drag and drop
-                    uploadArea.addEventListener('dragover', (e) => {{
+                    fileInput.addEventListener('change', function(e) {{
+                        if (e.target.files && e.target.files.length > 0) {{
+                            handleFilesSelect(Array.from(e.target.files));
+                        }}
+                    }});
+                    
+                    uploadArea.addEventListener('dragover', function(e) {{
                         e.preventDefault();
                         uploadArea.classList.add('dragover');
                     }});
                     
-                    uploadArea.addEventListener('dragleave', () => {{
-                        uploadArea.classList.remove('dragover');
-                    }});
-                    
-                    uploadArea.addEventListener('drop', (e) => {{
+                    uploadArea.addEventListener('dragleave', function(e) {{
                         e.preventDefault();
                         uploadArea.classList.remove('dragover');
-                        const files = e.dataTransfer.files;
-                        if (files.length > 0) {{
-                            fileInput.files = files;
-                            handleFileSelect(files[0]);
+                    }});
+                    
+                    uploadArea.addEventListener('drop', function(e) {{
+                        e.preventDefault();
+                        uploadArea.classList.remove('dragover');
+                        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {{
+                            handleFilesSelect(Array.from(e.dataTransfer.files));
                         }}
                     }});
                     
-                    // File input change
-                    fileInput.addEventListener('change', (e) => {{
-                        if (e.target.files.length > 0) {{
-                            handleFileSelect(e.target.files[0]);
+                    function handleFilesSelect(files) {{
+                        if (!files || files.length === 0) return;
+                        
+                        const allowedExtensions = ['.xlsx', '.xls', '.csv'];
+                        const validFiles = [];
+                        const invalidFiles = [];
+                        
+                        files.forEach(file => {{
+                            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                            if (allowedExtensions.includes(fileExtension)) {{
+                                validFiles.push(file);
+                            }} else {{
+                                invalidFiles.push(file.name);
+                            }}
+                        }});
+                        
+                        if (invalidFiles.length > 0) {{
+                            showError('Invalid file(s): ' + invalidFiles.join(', ') + '. Please select .xlsx, .xls, or .csv files.');
                         }}
-                    }});
+                        
+                        if (validFiles.length > 0) {{
+                            selectedFiles = validFiles;
+                            updateFilesList();
+                            uploadButton.disabled = false;
+                            hideError();
+                            hideSuccess();
+                        }}
+                    }}
                     
-                    function handleFileSelect(file) {{
-                        fileName.textContent = file.name;
-                        fileSize.textContent = formatFileSize(file.size);
-                        fileInfo.classList.add('show');
-                        result.classList.remove('show');
+                    function updateFilesList() {{
+                        if (selectedFiles.length === 0) {{
+                            filesList.innerHTML = '';
+                            return;
+                        }}
+                        
+                        let html = '<div class="files-list-header">Selected Files (' + selectedFiles.length + '):</div>';
+                        selectedFiles.forEach((file, index) => {{
+                            html += '<div class="file-item">';
+                            html += '<span class="file-name">' + file.name + '</span>';
+                            html += '<span class="file-size">' + formatFileSize(file.size) + '</span>';
+                            html += '<button class="file-remove" data-index="' + index + '">×</button>';
+                            html += '</div>';
+                        }});
+                        filesList.innerHTML = html;
+                        
+                        // Attach remove handlers
+                        const removeButtons = filesList.querySelectorAll('.file-remove');
+                        removeButtons.forEach(btn => {{
+                            btn.addEventListener('click', function() {{
+                                const index = parseInt(this.getAttribute('data-index'));
+                                removeFile(index);
+                            }});
+                        }});
+                    }}
+                    
+                    function removeFile(index) {{
+                        selectedFiles.splice(index, 1);
+                        updateFilesList();
+                        if (selectedFiles.length === 0) {{
+                            uploadButton.disabled = true;
+                            fileInput.value = '';
+                        }}
                     }}
                     
                     function formatFileSize(bytes) {{
@@ -808,31 +864,21 @@ async def upload_file_modal():
                         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
                     }}
                     
-                    // Form submission
-                    uploadForm.addEventListener('submit', async (e) => {{
-                        e.preventDefault();
-                        
-                        if (!fileInput.files || fileInput.files.length === 0) {{
-                            showResult('error', 'Please select a file first', null);
+                    window.uploadFiles = async function() {{
+                        if (selectedFiles.length === 0) {{
+                            showError('Please select at least one file first');
                             return;
                         }}
                         
                         const formData = new FormData();
-                        formData.append('file', fileInput.files[0]);
+                        selectedFiles.forEach(file => {{
+                            formData.append('files', file);
+                        }});
                         
-                        submitBtn.disabled = true;
-                        submitBtn.textContent = 'Processing...';
-                        progress.classList.add('show');
-                        result.classList.remove('show');
-                        
-                        // Simulate progress
-                        let progressValue = 0;
-                        const progressInterval = setInterval(() => {{
-                            progressValue += 10;
-                            if (progressValue < 90) {{
-                                progressFill.style.width = progressValue + '%';
-                            }}
-                        }}, 200);
+                        uploadButton.disabled = true;
+                        uploadButton.textContent = 'Uploading ' + selectedFiles.length + ' file(s)...';
+                        hideError();
+                        hideSuccess();
                         
                         try {{
                             const response = await fetch('/files/upload', {{
@@ -840,60 +886,55 @@ async def upload_file_modal():
                                 body: formData
                             }});
                             
-                            clearInterval(progressInterval);
-                            progressFill.style.width = '100%';
-                            
-                            const data = await response.json();
+                            const result = await response.json();
                             
                             if (response.ok) {{
-                                showResult('success', 'File uploaded and processed successfully!', data);
+                                const successCount = result.success_count || selectedFiles.length;
+                                const errorCount = result.error_count || 0;
+                                let message = successCount + ' file(s) uploaded and processed successfully!';
+                                if (errorCount > 0) {{
+                                    message += ' ' + errorCount + ' file(s) failed.';
+                                }}
+                                showSuccess(message);
                                 setTimeout(() => {{
                                     window.location.reload();
                                 }}, 2000);
                             }} else {{
-                                showResult('error', 'Error processing file: ' + (data.detail || 'Unknown error'), null);
+                                showError(result.detail || 'Error uploading files');
+                                uploadButton.disabled = false;
+                                uploadButton.textContent = 'Upload and Process';
                             }}
                         }} catch (error) {{
-                            clearInterval(progressInterval);
-                            showResult('error', 'Error uploading file: ' + error.message, null);
-                        }} finally {{
-                            submitBtn.disabled = false;
-                            submitBtn.textContent = 'Upload and Process';
-                            setTimeout(() => {{
-                                progress.classList.remove('show');
-                                progressFill.style.width = '0%';
-                            }}, 1000);
+                            showError('Error uploading files: ' + error.message);
+                            uploadButton.disabled = false;
+                            uploadButton.textContent = 'Upload and Process';
                         }}
-                    }});
+                    }};
                     
-                    function showResult(type, message, data) {{
-                        result.className = 'result ' + type + ' show';
-                        let html = '<strong>' + message + '</strong>';
-                        
-                        if (data) {{
-                            html += '<div class="result-info">';
-                            if (data.file_id) {{
-                                html += '<p>File ID: <strong>' + data.file_id + '</strong></p>';
-                                html += '<p><a href="/files/' + data.file_id + '" class="link">View file details</a></p>';
-                            }}
-                            if (data.total_rows !== undefined) {{
-                                html += '<p>Total rows: ' + data.total_rows + '</p>';
-                                html += '<p>Valid rows: ' + (data.valid_rows || 0) + '</p>';
-                                html += '<p>Error rows: ' + (data.error_rows || 0) + '</p>';
-                            }}
-                            if (data.status) {{
-                                html += '<p>Status: <strong>' + data.status + '</strong></p>';
-                            }}
-                            if (data.template_id) {{
-                                html += '<p>Template: ' + data.template_name + ' (' + data.template_id + ')</p>';
-                            }}
-                            if (data.proposal_path) {{
-                                html += '<p>Mapping proposal generated. Status: <strong>new_template_required</strong></p>';
-                            }}
-                            html += '</div>';
+                    function showError(message) {{
+                        if (errorMessage) {{
+                            errorMessage.textContent = message;
+                            errorMessage.classList.add('show');
                         }}
-                        
-                        result.innerHTML = html;
+                    }}
+                    
+                    function hideError() {{
+                        if (errorMessage) {{
+                            errorMessage.classList.remove('show');
+                        }}
+                    }}
+                    
+                    function showSuccess(message) {{
+                        if (successMessage) {{
+                            successMessage.textContent = message;
+                            successMessage.classList.add('show');
+                        }}
+                    }}
+                    
+                    function hideSuccess() {{
+                        if (successMessage) {{
+                            successMessage.classList.remove('show');
+                        }}
                     }}
                 }}, 100);
             }})();
@@ -1070,7 +1111,7 @@ async def upload_page():
             
             <form id="uploadForm" enctype="multipart/form-data">
                 <div class="upload-area" id="uploadArea">
-                    <div class="upload-icon">📁</div>
+                    <div class="upload-icon">📄</div>
                     <div class="upload-text">Click to select or drag and drop</div>
                     <div class="upload-hint">Supports .xlsx, .xls, and .csv files</div>
                     <input type="file" id="fileInput" name="file" accept=".xlsx,.xls,.csv" required>
@@ -1242,74 +1283,110 @@ async def upload_page():
 
 @router.post("/upload")
 async def upload_file(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
-    """Upload and process a bordereaux file.
+    """Upload and process bordereaux files.
     
     Args:
-        file: Uploaded file (Excel or CSV)
+        files: Uploaded files (Excel or CSV) - can be multiple
         db: Database session
         
     Returns:
-        Processing results
+        Processing results for all files
     """
-    try:
-        # Validate file type
-        allowed_extensions = ['.xlsx', '.xls', '.csv']
-        file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
-        
-        if file_extension not in allowed_extensions:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}"
-            )
-        
-        # Read file content
-        file_bytes = await file.read()
-        
-        if len(file_bytes) == 0:
-            raise HTTPException(status_code=400, detail="File is empty")
-        
-        logger.info("File upload started", filename=file.filename, size=len(file_bytes))
-        
-        # Save file using storage service
-        save_result = storage_service.save_raw_file(
-            db=db,
-            file_bytes=file_bytes,
-            filename=file.filename,
-            source_email="web_upload",
-            subject="Web Upload",
-        )
-        
-        file_id = save_result['file_id']
-        
-        # Update status to RECEIVED
-        from app.models.bordereaux import FileStatus
-        bordereaux_file = db.query(BordereauxFile).filter(BordereauxFile.id == file_id).first()
-        if bordereaux_file:
-            bordereaux_file.status = FileStatus.RECEIVED
-            db.commit()
-        
-        # Process file through pipeline
-        logger.info("Processing uploaded file", file_id=file_id)
-        result = pipeline_service.process_file(file_id)
-        
-        if result.get("success"):
-            logger.info("File processed successfully", file_id=file_id, status=result.get("status"))
-            return JSONResponse(content=result, status_code=200)
-        else:
-            logger.error("File processing failed", file_id=file_id, error=result.get("error"))
-            raise HTTPException(
-                status_code=500,
-                detail=result.get("error", "Error processing file")
-            )
+    from app.models.bordereaux import FileStatus
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Error uploading file", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+    if not files or len(files) == 0:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    allowed_extensions = ['.xlsx', '.xls', '.csv']
+    results = []
+    success_count = 0
+    error_count = 0
+    
+    for file in files:
+        try:
+            # Validate file type
+            file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+            
+            if file_extension not in allowed_extensions:
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}"
+                })
+                error_count += 1
+                continue
+            
+            # Read file content
+            file_bytes = await file.read()
+            
+            if len(file_bytes) == 0:
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": "File is empty"
+                })
+                error_count += 1
+                continue
+            
+            logger.info("File upload started", filename=file.filename, size=len(file_bytes))
+            
+            # Save file using storage service
+            save_result = storage_service.save_raw_file(
+                db=db,
+                file_bytes=file_bytes,
+                filename=file.filename,
+                source_email="web_upload",
+                subject="Web Upload",
+            )
+            
+            file_id = save_result['file_id']
+            
+            # Update status to RECEIVED
+            bordereaux_file = db.query(BordereauxFile).filter(BordereauxFile.id == file_id).first()
+            if bordereaux_file:
+                bordereaux_file.status = FileStatus.RECEIVED
+                db.commit()
+            
+            # Process file through pipeline
+            logger.info("Processing uploaded file", file_id=file_id)
+            result = pipeline_service.process_file(file_id)
+            
+            if result.get("success"):
+                logger.info("File processed successfully", file_id=file_id, status=result.get("status"))
+                results.append({
+                    "filename": file.filename,
+                    "success": True,
+                    "file_id": file_id,
+                    **result
+                })
+                success_count += 1
+            else:
+                logger.error("File processing failed", file_id=file_id, error=result.get("error"))
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": result.get("error", "Error processing file")
+                })
+                error_count += 1
+        
+        except Exception as e:
+            logger.exception("Error uploading file", filename=file.filename, error=str(e))
+            results.append({
+                "filename": file.filename,
+                "success": False,
+                "error": str(e)
+            })
+            error_count += 1
+    
+    return JSONResponse(content={
+        "success": error_count == 0,
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results
+    }, status_code=200 if success_count > 0 else 500)
 
 
 @router.get("/{file_id}", response_class=HTMLResponse)
@@ -1381,165 +1458,176 @@ async def get_file_details(
             else 0
         )
         
-        html_content = f'''
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>File Details - {bordereaux_file.filename}</title>
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                    background: #f5f5f5;
-                    padding: 20px;
-                }}
-                .container {{
-                    max-width: 1600px;
-                    margin: 0 auto;
-                    background: white;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    padding: 30px;
-                }}
-                .header {{
+        page_css = """
+                h1 {
+                    color: #003781;
+                    margin-bottom: 20px;
+                    font-size: 28px;
+                    font-weight: 600;
+                    letter-spacing: -0.5px;
+                }
+                .header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     margin-bottom: 30px;
                     padding-bottom: 20px;
-                    border-bottom: 2px solid #dee2e6;
-                }}
-                .header h1 {{
-                    color: #333;
-                    font-size: 24px;
-                }}
-                .btn {{
-                    padding: 10px 20px;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
+                    border-bottom: 1px solid #e9ecef;
+                }
+                .btn-link {
+                    color: #003781;
                     text-decoration: none;
-                    display: inline-block;
-                    font-size: 14px;
+                    font-weight: 500;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                }
+                .btn-link:hover {
+                    background: #f8f9fa;
+                    color: #002d66;
+                }
+                .stats {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+                .stat-card {
+                    background: white;
+                    border: 1px solid #e9ecef;
+                    border-radius: 4px;
+                    padding: 20px;
+                    text-align: center;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+                }
+                .stat-card .value {
+                    font-size: 32px;
                     font-weight: 600;
-                    transition: transform 0.2s;
-                }}
-                .btn-secondary {{
-                    background: #6c757d;
-                    color: white;
-                }}
-                .btn-secondary:hover {{
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
-                }}
-                .info-grid {{
+                    color: #003781;
+                    margin-bottom: 8px;
+                }
+                .stat-card .label {
+                    font-size: 13px;
+                    color: #6c757d;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    font-weight: 500;
+                }
+                .info-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
                     gap: 20px;
                     margin-bottom: 30px;
-                }}
-                .info-card {{
+                }
+                .info-card {
                     background: #f8f9fa;
                     padding: 15px;
-                    border-radius: 6px;
-                }}
-                .info-card label {{
+                    border-radius: 4px;
+                    border: 1px solid #e9ecef;
+                }
+                .info-card label {
                     display: block;
                     font-size: 12px;
-                    color: #666;
-                    margin-bottom: 5px;
+                    color: #6c757d;
+                    margin-bottom: 8px;
                     text-transform: uppercase;
-                    font-weight: 600;
-                }}
-                .info-card value {{
+                    font-weight: 500;
+                    letter-spacing: 0.5px;
+                }
+                .info-card value {
                     display: block;
-                    font-size: 16px;
-                    color: #333;
-                    font-weight: 600;
-                }}
-                .badge {{
-                    padding: 4px 12px;
-                    border-radius: 12px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                }}
-                .badge-pending {{ background: #fff3cd; color: #856404; }}
-                .badge-received {{ background: #d1ecf1; color: #0c5460; }}
-                .badge-processing {{ background: #d4edda; color: #155724; }}
-                .badge-processed-ok {{ background: #d4edda; color: #155724; }}
-                .badge-processed-with-errors {{ background: #f8d7da; color: #721c24; }}
-                .badge-failed {{ background: #f8d7da; color: #721c24; }}
-                .badge-new-template-required {{ background: #fff3cd; color: #856404; }}
-                .stats {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                    gap: 15px;
-                    margin-bottom: 30px;
-                }}
-                .stat-card {{
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 20px;
-                    border-radius: 8px;
-                    text-align: center;
-                }}
-                .stat-card .value {{
-                    font-size: 32px;
-                    font-weight: 700;
-                    margin-bottom: 5px;
-                }}
-                .stat-card .label {{
                     font-size: 14px;
-                    opacity: 0.9;
-                }}
-                table {{
+                    color: #495057;
+                    font-weight: 500;
+                }
+                .badge {
+                    padding: 4px 10px;
+                    border-radius: 3px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+                .badge-pending { background: #fff3cd; color: #856404; }
+                .badge-received { background: #d1ecf1; color: #0c5460; }
+                .badge-processing { background: #cfe2ff; color: #003781; }
+                .badge-processed-ok { background: #d1e7dd; color: #0f5132; }
+                .badge-processed-with-errors { background: #f8d7da; color: #842029; }
+                .badge-failed { background: #f8d7da; color: #842029; }
+                .badge-new-template-required { background: #fff3cd; color: #856404; }
+                .section-title {
+                    font-size: 20px;
+                    color: #003781;
+                    margin: 30px 0 15px 0;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid #e9ecef;
+                    font-weight: 600;
+                }
+                table {
                     width: 100%;
                     border-collapse: collapse;
                     margin-top: 20px;
-                }}
-                th {{
+                }
+                th {
                     background: #f8f9fa;
-                    padding: 12px;
+                    padding: 14px 12px;
                     text-align: left;
                     font-weight: 600;
-                    color: #555;
+                    color: #003781;
                     border-bottom: 2px solid #dee2e6;
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
                     position: sticky;
                     top: 0;
-                }}
-                td {{
-                    padding: 12px;
-                    border-bottom: 1px solid #dee2e6;
-                }}
-                tbody tr:hover {{
+                }
+                td {
+                    padding: 14px 12px;
+                    border-bottom: 1px solid #e9ecef;
+                    font-size: 14px;
+                    color: #495057;
+                }
+                tbody tr:hover {
                     background: #f8f9fa;
-                }}
-                .empty-state {{
+                }
+                .empty-state {
                     text-align: center;
                     padding: 60px 20px;
-                    color: #999;
-                }}
-                .empty-state-icon {{
+                    color: #6c757d;
+                }
+                .empty-state-icon {
                     font-size: 48px;
                     margin-bottom: 10px;
-                }}
-                .section-title {{
-                    font-size: 20px;
-                    color: #333;
-                    margin: 30px 0 15px 0;
-                    padding-bottom: 10px;
-                    border-bottom: 2px solid #dee2e6;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
+                }
+                .table-container {
+                    overflow-x: auto;
+                    max-height: 600px;
+                    overflow-y: auto;
+                    border: 1px solid #e9ecef;
+                    border-radius: 4px;
+                }
+                .btn-secondary {
+                    padding: 10px 20px;
+                    background: #003781;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    text-decoration: none;
+                    display: inline-block;
+                    font-size: 14px;
+                    font-weight: 500;
+                    transition: all 0.2s;
+                }
+                .btn-secondary:hover {
+                    background: #002d66;
+                }
+                """
+        
+        content = f"""
                 <div class="header">
-                    <h1>📄 {bordereaux_file.filename}</h1>
-                    <a href="/files" class="btn btn-secondary">← Back to Files</a>
+                    <h1>{bordereaux_file.filename}</h1>
+                    <a href="/files" class="btn-link">Back to Files</a>
                 </div>
                 
                 <div class="stats">
@@ -1590,21 +1678,25 @@ async def get_file_details(
                         <label>Processed</label>
                         <value>{bordereaux_file.processed_at.strftime("%Y-%m-%d %H:%M:%S") if bordereaux_file.processed_at else "Not processed"}</value>
                     </div>
-                    {f'<div class="info-card"><label>Error Message</label><value style="color: #721c24;">{bordereaux_file.error_message}</value></div>' if bordereaux_file.error_message else ''}
+                    {f'<div class="info-card"><label>Error Message</label><value style="color: #842029;">{bordereaux_file.error_message}</value></div>' if bordereaux_file.error_message else ''}
                 </div>
                 
                 <h2 class="section-title">Processed Rows</h2>
-                <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
+                <div class="table-container">
                     <table>
                         {rows_table}
                     </table>
                 </div>
                 
-                {f'<h2 class="section-title">Validation Errors</h2><p><a href="/files/{file_id}/errors" class="btn btn-secondary">View {error_count} Error(s)</a></p>' if error_count > 0 else ''}
-            </div>
-        </body>
-        </html>
-        '''
+                {f'<h2 class="section-title">Validation Errors</h2><p><a href="/files/{file_id}/errors" class="btn-secondary">View {error_count} Error(s)</a></p>' if error_count > 0 else ''}
+        """
+        
+        html_content = wrap_with_layout(
+            content=content,
+            page_title=f"File Details - {bordereaux_file.filename}",
+            current_page="files",
+            additional_css=page_css
+        )
         
         logger.info("File details retrieved", file_id=file_id)
         return HTMLResponse(content=html_content)
@@ -1733,104 +1825,85 @@ async def get_file_errors(
         else:
             errors_rows = '<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">✅</div><p>No validation errors</p></div></td></tr>'
         
-        html_content = f'''
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Validation Errors - {bordereaux_file.filename}</title>
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                    background: #f5f5f5;
-                    padding: 20px;
-                }}
-                .container {{
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    background: white;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    padding: 30px;
-                }}
-                .header {{
+        page_css = """
+                h1 {
+                    color: #003781;
+                    margin-bottom: 20px;
+                    font-size: 28px;
+                    font-weight: 600;
+                    letter-spacing: -0.5px;
+                }
+                .header {
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                     margin-bottom: 30px;
                     padding-bottom: 20px;
-                    border-bottom: 2px solid #dee2e6;
-                }}
-                .header h1 {{
-                    color: #333;
-                    font-size: 24px;
-                }}
-                .btn {{
-                    padding: 10px 20px;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
+                    border-bottom: 1px solid #e9ecef;
+                }
+                .btn-link {
+                    color: #003781;
                     text-decoration: none;
-                    display: inline-block;
-                    font-size: 14px;
-                    font-weight: 600;
-                    transition: transform 0.2s;
-                }}
-                .btn-secondary {{
-                    background: #6c757d;
-                    color: white;
-                }}
-                .btn-secondary:hover {{
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
-                }}
-                table {{
+                    font-weight: 500;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                }
+                .btn-link:hover {
+                    background: #f8f9fa;
+                    color: #002d66;
+                }
+                table {
                     width: 100%;
                     border-collapse: collapse;
                     margin-top: 20px;
-                }}
-                th {{
+                }
+                th {
                     background: #f8f9fa;
-                    padding: 12px;
+                    padding: 14px 12px;
                     text-align: left;
                     font-weight: 600;
-                    color: #555;
+                    color: #003781;
                     border-bottom: 2px solid #dee2e6;
-                }}
-                td {{
-                    padding: 12px;
-                    border-bottom: 1px solid #dee2e6;
-                }}
-                tr:hover {{
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                td {
+                    padding: 14px 12px;
+                    border-bottom: 1px solid #e9ecef;
+                    font-size: 14px;
+                    color: #495057;
+                }
+                tr:hover {
                     background: #f8f9fa;
-                }}
-                .error-code {{
+                }
+                .error-code {
                     background: #f8d7da;
-                    color: #721c24;
-                    padding: 4px 8px;
-                    border-radius: 4px;
+                    color: #842029;
+                    padding: 4px 10px;
+                    border-radius: 3px;
                     font-size: 11px;
                     font-weight: 600;
-                    font-family: monospace;
-                }}
-                .empty-state {{
+                    font-family: 'Courier New', monospace;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+                .empty-state {
                     text-align: center;
                     padding: 60px 20px;
-                    color: #999;
-                }}
-                .empty-state-icon {{
+                    color: #6c757d;
+                }
+                .empty-state-icon {
                     font-size: 48px;
                     margin-bottom: 10px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
+                }
+                """
+        
+        content = f"""
                 <div class="header">
-                    <h1>⚠️ Validation Errors - {bordereaux_file.filename}</h1>
-                    <a href="/files/{file_id}" class="btn btn-secondary">← Back to File</a>
+                    <h1>Validation Errors - {bordereaux_file.filename}</h1>
+                    <a href="/files/{file_id}" class="btn-link">Back to File</a>
                 </div>
                 
                 <table>
@@ -1848,10 +1921,14 @@ async def get_file_errors(
                         {errors_rows}
                     </tbody>
                 </table>
-            </div>
-        </body>
-        </html>
-        '''
+        """
+        
+        html_content = wrap_with_layout(
+            content=content,
+            page_title=f"Validation Errors - {bordereaux_file.filename}",
+            current_page="files",
+            additional_css=page_css
+        )
         
         logger.info(
             "File errors retrieved",

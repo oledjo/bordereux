@@ -533,6 +533,56 @@ async def upload_template_modal():
                 color: #6c757d;
                 font-size: 14px;
             }
+            .files-list {
+                margin-top: 20px;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            .files-list-header {
+                font-weight: 600;
+                color: #003781;
+                margin-bottom: 10px;
+                font-size: 14px;
+            }
+            .file-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 12px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                margin-bottom: 8px;
+            }
+            .file-item .file-name {
+                flex: 1;
+                font-weight: 500;
+                color: #003781;
+                font-size: 14px;
+                margin-right: 10px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                margin-bottom: 0;
+            }
+            .file-item .file-size {
+                color: #6c757d;
+                font-size: 12px;
+                margin-right: 10px;
+            }
+            .file-item .file-remove {
+                background: none;
+                border: none;
+                color: #dc3545;
+                font-size: 20px;
+                cursor: pointer;
+                padding: 0 5px;
+                line-height: 1;
+                transition: color 0.2s;
+            }
+            .file-item .file-remove:hover {
+                color: #bb2d3b;
+            }
             button#uploadButton {
                 width: 100%;
                 padding: 14px;
@@ -606,20 +656,17 @@ async def upload_template_modal():
             <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
                 <div class="upload-icon">📄</div>
                 <div class="upload-text">Click to select or drag and drop</div>
-                <div class="upload-hint">JSON template file</div>
+                <div class="upload-hint">JSON template file (multiple files allowed)</div>
             </div>
             
-            <input type="file" id="fileInput" accept=".json" />
+            <input type="file" id="fileInput" accept=".json" multiple />
             
-            <div class="file-info" id="fileInfo">
-                <div class="file-name" id="fileName"></div>
-                <div class="file-size" id="fileSize"></div>
-            </div>
+            <div class="files-list" id="filesList"></div>
             
             <div class="error" id="errorMessage"></div>
             <div class="success" id="successMessage"></div>
             
-            <button id="uploadButton" onclick="uploadTemplate()" disabled>Upload Template</button>
+            <button id="uploadButton" onclick="uploadTemplates()" disabled>Upload Templates</button>
             
             <div class="example-link">
                 <strong>Template JSON Format:</strong><br>
@@ -632,119 +679,190 @@ async def upload_template_modal():
             {modal_css}
         </style>
         <script>
-            const fileInput = document.getElementById('fileInput');
-            const uploadArea = document.getElementById('uploadArea');
-            const fileInfo = document.getElementById('fileInfo');
-            const fileName = document.getElementById('fileName');
-            const fileSize = document.getElementById('fileSize');
-            const uploadButton = document.getElementById('uploadButton');
-            const errorMessage = document.getElementById('errorMessage');
-            const successMessage = document.getElementById('successMessage');
-            let selectedFile = null;
-            
-            fileInput.addEventListener('change', function(e) {{
-                handleFileSelect(e.target.files[0]);
-            }});
-            
-            uploadArea.addEventListener('dragover', function(e) {{
-                e.preventDefault();
-                uploadArea.classList.add('dragover');
-            }});
-            
-            uploadArea.addEventListener('dragleave', function(e) {{
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-            }});
-            
-            uploadArea.addEventListener('drop', function(e) {{
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-                if (e.dataTransfer.files.length > 0) {{
-                    handleFileSelect(e.dataTransfer.files[0]);
-                }}
-            }});
-            
-            function handleFileSelect(file) {{
-                if (!file) return;
-                
-                if (!file.name.endsWith('.json')) {{
-                    showError('Please select a JSON file');
-                    return;
-                }}
-                
-                selectedFile = file;
-                fileName.textContent = file.name;
-                fileSize.textContent = formatFileSize(file.size);
-                fileInfo.classList.add('show');
-                uploadButton.disabled = false;
-                hideError();
-                hideSuccess();
-            }}
-            
-            function formatFileSize(bytes) {{
-                if (bytes === 0) return '0 Bytes';
-                const k = 1024;
-                const sizes = ['Bytes', 'KB', 'MB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-            }}
-            
-            async function uploadTemplate() {{
-                if (!selectedFile) {{
-                    showError('Please select a file first');
-                    return;
-                }}
-                
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                
-                uploadButton.disabled = true;
-                uploadButton.textContent = 'Uploading...';
-                hideError();
-                hideSuccess();
-                
-                try {{
-                    const response = await fetch('/mappings/upload', {{
-                        method: 'POST',
-                        body: formData
+            (function() {{
+                setTimeout(function() {{
+                    const fileInput = document.getElementById('fileInput');
+                    const uploadArea = document.getElementById('uploadArea');
+                    const filesList = document.getElementById('filesList');
+                    const uploadButton = document.getElementById('uploadButton');
+                    const errorMessage = document.getElementById('errorMessage');
+                    const successMessage = document.getElementById('successMessage');
+                    
+                    if (!fileInput || !uploadArea || !filesList || !uploadButton) {{
+                        console.error('Required elements not found');
+                        return;
+                    }}
+                    
+                    let selectedFiles = [];
+                    
+                    fileInput.addEventListener('change', function(e) {{
+                        if (e.target.files && e.target.files.length > 0) {{
+                            handleFilesSelect(Array.from(e.target.files));
+                        }}
                     }});
                     
-                    const result = await response.json();
+                    uploadArea.addEventListener('dragover', function(e) {{
+                        e.preventDefault();
+                        uploadArea.classList.add('dragover');
+                    }});
                     
-                    if (response.ok) {{
-                        showSuccess(`Template "${{result.template.name}}" uploaded successfully! Redirecting...`);
-                        setTimeout(() => {{
-                            window.location.reload();
-                        }}, 2000);
-                    }} else {{
-                        showError(result.detail || 'Error uploading template');
-                        uploadButton.disabled = false;
-                        uploadButton.textContent = 'Upload Template';
+                    uploadArea.addEventListener('dragleave', function(e) {{
+                        e.preventDefault();
+                        uploadArea.classList.remove('dragover');
+                    }});
+                    
+                    uploadArea.addEventListener('drop', function(e) {{
+                        e.preventDefault();
+                        uploadArea.classList.remove('dragover');
+                        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {{
+                            handleFilesSelect(Array.from(e.dataTransfer.files));
+                        }}
+                    }});
+                    
+                    function handleFilesSelect(files) {{
+                        if (!files || files.length === 0) return;
+                        
+                        const validFiles = [];
+                        const invalidFiles = [];
+                        
+                        files.forEach(file => {{
+                            if (file.name.endsWith('.json')) {{
+                                validFiles.push(file);
+                            }} else {{
+                                invalidFiles.push(file.name);
+                            }}
+                        }});
+                        
+                        if (invalidFiles.length > 0) {{
+                            showError('Invalid file(s): ' + invalidFiles.join(', ') + '. Please select JSON files.');
+                        }}
+                        
+                        if (validFiles.length > 0) {{
+                            selectedFiles = validFiles;
+                            updateFilesList();
+                            uploadButton.disabled = false;
+                            hideError();
+                            hideSuccess();
+                        }}
                     }}
-                }} catch (error) {{
-                    showError('Error uploading template: ' + error.message);
-                    uploadButton.disabled = false;
-                    uploadButton.textContent = 'Upload Template';
-                }}
-            }}
-            
-            function showError(message) {{
-                errorMessage.textContent = message;
-                errorMessage.classList.add('show');
-            }}
-            
-            function hideError() {{
-                errorMessage.classList.remove('show');
-            }}
-            
-            function showSuccess(message) {{
-                successMessage.textContent = message;
-                successMessage.classList.add('show');
-            }}
-            
-            function hideSuccess() {{
-                successMessage.classList.remove('show');
-            }}
+                    
+                    function updateFilesList() {{
+                        if (selectedFiles.length === 0) {{
+                            filesList.innerHTML = '';
+                            return;
+                        }}
+                        
+                        let html = '<div class="files-list-header">Selected Files (' + selectedFiles.length + '):</div>';
+                        selectedFiles.forEach((file, index) => {{
+                            html += '<div class="file-item">';
+                            html += '<span class="file-name">' + file.name + '</span>';
+                            html += '<span class="file-size">' + formatFileSize(file.size) + '</span>';
+                            html += '<button class="file-remove" data-index="' + index + '">×</button>';
+                            html += '</div>';
+                        }});
+                        filesList.innerHTML = html;
+                        
+                        // Attach remove handlers
+                        const removeButtons = filesList.querySelectorAll('.file-remove');
+                        removeButtons.forEach(btn => {{
+                            btn.addEventListener('click', function() {{
+                                const index = parseInt(this.getAttribute('data-index'));
+                                removeFile(index);
+                            }});
+                        }});
+                    }}
+                    
+                    function removeFile(index) {{
+                        selectedFiles.splice(index, 1);
+                        updateFilesList();
+                        if (selectedFiles.length === 0) {{
+                            uploadButton.disabled = true;
+                            fileInput.value = '';
+                        }}
+                    }}
+                    
+                    function formatFileSize(bytes) {{
+                        if (bytes === 0) return '0 Bytes';
+                        const k = 1024;
+                        const sizes = ['Bytes', 'KB', 'MB'];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+                    }}
+                    
+                    window.uploadTemplates = async function() {{
+                        if (selectedFiles.length === 0) {{
+                            showError('Please select at least one file first');
+                            return;
+                        }}
+                        
+                        const formData = new FormData();
+                        selectedFiles.forEach(file => {{
+                            formData.append('files', file);
+                        }});
+                        
+                        uploadButton.disabled = true;
+                        uploadButton.textContent = 'Uploading ' + selectedFiles.length + ' template(s)...';
+                        hideError();
+                        hideSuccess();
+                        
+                        try {{
+                            const response = await fetch('/mappings/upload', {{
+                                method: 'POST',
+                                body: formData
+                            }});
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok) {{
+                                const successCount = result.success_count || selectedFiles.length;
+                                const errorCount = result.error_count || 0;
+                                let message = successCount + ' template(s) uploaded successfully!';
+                                if (errorCount > 0) {{
+                                    message += ' ' + errorCount + ' template(s) failed.';
+                                }}
+                                showSuccess(message);
+                                setTimeout(() => {{
+                                    window.location.reload();
+                                }}, 2000);
+                            }} else {{
+                                showError(result.detail || 'Error uploading templates');
+                                uploadButton.disabled = false;
+                                uploadButton.textContent = 'Upload Templates';
+                            }}
+                        }} catch (error) {{
+                            showError('Error uploading templates: ' + error.message);
+                            uploadButton.disabled = false;
+                            uploadButton.textContent = 'Upload Templates';
+                        }}
+                    }};
+                    
+                    function showError(message) {{
+                        if (errorMessage) {{
+                            errorMessage.textContent = message;
+                            errorMessage.classList.add('show');
+                        }}
+                    }}
+                    
+                    function hideError() {{
+                        if (errorMessage) {{
+                            errorMessage.classList.remove('show');
+                        }}
+                    }}
+                    
+                    function showSuccess(message) {{
+                        if (successMessage) {{
+                            successMessage.textContent = message;
+                            successMessage.classList.add('show');
+                        }}
+                    }}
+                    
+                    function hideSuccess() {{
+                        if (successMessage) {{
+                            successMessage.classList.remove('show');
+                        }}
+                    }}
+                }}, 100);
+            }})();
         </script>
     """
     return HTMLResponse(content=modal_content)
@@ -890,20 +1008,17 @@ async def upload_template_page():
             <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
                 <div class="upload-icon">📄</div>
                 <div class="upload-text">Click to select or drag and drop</div>
-                <div class="upload-hint">JSON template file</div>
+                <div class="upload-hint">JSON template file (multiple files allowed)</div>
             </div>
             
-            <input type="file" id="fileInput" accept=".json" />
+            <input type="file" id="fileInput" accept=".json" multiple />
             
-            <div class="file-info" id="fileInfo">
-                <div class="file-name" id="fileName"></div>
-                <div class="file-size" id="fileSize"></div>
-            </div>
+            <div class="files-list" id="filesList"></div>
             
             <div class="error" id="errorMessage"></div>
             <div class="success" id="successMessage"></div>
             
-            <button id="uploadButton" onclick="uploadTemplate()" disabled>Upload Template</button>
+            <button id="uploadButton" onclick="uploadTemplates()" disabled>Upload Templates</button>
             
             <div class="example-link">
                 <strong>Template JSON Format:</strong><br>
@@ -1040,81 +1155,107 @@ async def upload_template_page():
 
 @router.post("/upload")
 async def upload_template(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
-    """Upload a template from a JSON file."""
+    """Upload templates from JSON files (can be multiple)."""
     logger = get_structured_logger(__name__)
     
-    try:
-        # Read file content
-        content = await file.read()
-        
-        # Parse JSON
+    if not files or len(files) == 0:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    results = []
+    success_count = 0
+    error_count = 0
+    
+    for file in files:
         try:
-            template_data = json.loads(content.decode('utf-8'))
-        except json.JSONDecodeError as e:
-            logger.error("Invalid JSON in template file", error=str(e))
-            raise HTTPException(status_code=400, detail=f"Invalid JSON file: {str(e)}")
-        
-        # Validate required fields
-        required_fields = ['template_id', 'name', 'file_type', 'column_mappings']
-        missing_fields = [field for field in required_fields if field not in template_data]
-        if missing_fields:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Missing required fields: {', '.join(missing_fields)}"
+            # Read file content
+            content = await file.read()
+            
+            # Parse JSON
+            try:
+                template_data = json.loads(content.decode('utf-8'))
+            except json.JSONDecodeError as e:
+                logger.error("Invalid JSON in template file", filename=file.filename, error=str(e))
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": f"Invalid JSON file: {str(e)}"
+                })
+                error_count += 1
+                continue
+            
+            # Validate required fields
+            required_fields = ['template_id', 'name', 'file_type', 'column_mappings']
+            missing_fields = [field for field in required_fields if field not in template_data]
+            if missing_fields:
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                })
+                error_count += 1
+                continue
+            
+            # Check if template already exists
+            existing_template = template_repository.get_by_id(db, template_data['template_id'])
+            if existing_template:
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": f"Template with ID '{template_data['template_id']}' already exists"
+                })
+                error_count += 1
+                continue
+            
+            # Validate file_type
+            try:
+                file_type = FileType(template_data['file_type'])
+            except ValueError:
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": f"Invalid file_type: {template_data['file_type']}. Must be one of: claims, premium, exposure"
+                })
+                error_count += 1
+                continue
+            
+            # Validate column_mappings
+            if not isinstance(template_data['column_mappings'], dict):
+                results.append({
+                    "filename": file.filename,
+                    "success": False,
+                    "error": "column_mappings must be a dictionary"
+                })
+                error_count += 1
+                continue
+            
+            # Create TemplateCreate object
+            template_create = TemplateCreate(
+                template_id=template_data['template_id'],
+                name=template_data['name'],
+                carrier=template_data.get('carrier'),
+                file_type=file_type,
+                pattern=template_data.get('pattern'),
+                column_mappings=template_data['column_mappings'],
+                version=template_data.get('version', '1.0.0'),
+                active_flag=template_data.get('active_flag', True),
             )
-        
-        # Check if template already exists
-        existing_template = template_repository.get_by_id(db, template_data['template_id'])
-        if existing_template:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Template with ID '{template_data['template_id']}' already exists"
+            
+            # Create template
+            created_template = template_repository.create(db, template_create)
+            
+            logger.info(
+                "Template uploaded successfully",
+                filename=file.filename,
+                template_id=created_template.template_id,
+                name=created_template.name
             )
-        
-        # Validate file_type
-        try:
-            file_type = FileType(template_data['file_type'])
-        except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file_type: {template_data['file_type']}. Must be one of: claims, premium, exposure"
-            )
-        
-        # Validate column_mappings
-        if not isinstance(template_data['column_mappings'], dict):
-            raise HTTPException(
-                status_code=400,
-                detail="column_mappings must be a dictionary"
-            )
-        
-        # Create TemplateCreate object
-        template_create = TemplateCreate(
-            template_id=template_data['template_id'],
-            name=template_data['name'],
-            carrier=template_data.get('carrier'),
-            file_type=file_type,
-            pattern=template_data.get('pattern'),
-            column_mappings=template_data['column_mappings'],
-            version=template_data.get('version', '1.0.0'),
-            active_flag=template_data.get('active_flag', True),
-        )
-        
-        # Create template
-        created_template = template_repository.create(db, template_create)
-        
-        logger.info(
-            "Template uploaded successfully",
-            template_id=created_template.template_id,
-            name=created_template.name
-        )
-        
-        return JSONResponse(
-            content={
+            
+            results.append({
+                "filename": file.filename,
                 "success": True,
-                "message": f"Template '{created_template.name}' uploaded successfully",
                 "template": {
                     "id": created_template.id,
                     "template_id": created_template.template_id,
@@ -1122,15 +1263,27 @@ async def upload_template(
                     "carrier": created_template.carrier,
                     "file_type": created_template.file_type,
                 }
-            },
-            status_code=201
-        )
+            })
+            success_count += 1
+        
+        except Exception as e:
+            logger.error("Error uploading template", filename=file.filename, error=str(e), exc_info=True)
+            results.append({
+                "filename": file.filename,
+                "success": False,
+                "error": str(e)
+            })
+            error_count += 1
     
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error uploading template", error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error uploading template: {str(e)}")
+    return JSONResponse(
+        content={
+            "success": error_count == 0,
+            "success_count": success_count,
+            "error_count": error_count,
+            "results": results
+        },
+        status_code=200 if success_count > 0 else 500
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
