@@ -16,6 +16,7 @@ from app.services.storage_service import StorageService
 from app.services.pipeline_service import PipelineService
 from app.services.template_repository import TemplateRepository
 from app.core.logging import get_structured_logger
+from app.core.layout import wrap_with_layout
 import json
 from pathlib import Path
 
@@ -28,15 +29,13 @@ template_repository = TemplateRepository()
 
 @router.get("/", response_class=HTMLResponse)
 async def list_files(
-    status: Optional[str] = Query(None, description="Filter by status"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Number of records to return"),
+    limit: int = Query(1000, ge=1, le=10000, description="Number of records to return"),
     db: Session = Depends(get_db)
 ):
-    """List bordereaux files with status, sender, and created_at (HTML view).
+    """List bordereaux files with sorting and filtering (HTML view).
     
     Args:
-        status: Optional status filter
         skip: Number of records to skip (pagination)
         limit: Maximum number of records to return
         db: Database session
@@ -47,26 +46,11 @@ async def list_files(
     try:
         query = db.query(BordereauxFile)
         
-        # Filter by status if provided
-        if status:
-            try:
-                status_enum = FileStatus(status.lower())
-                query = query.filter(BordereauxFile.status == status_enum)
-            except ValueError:
-                pass
-        
-        # Order by created_at descending (newest first)
+        # Order by created_at descending (newest first) by default
         query = query.order_by(BordereauxFile.created_at.desc())
         
-        # Apply pagination
+        # Get all files (client-side filtering/sorting will handle it)
         files = query.offset(skip).limit(limit).all()
-        
-        # Build status filter options
-        status_options = [s.value for s in FileStatus]
-        status_filter_html = '<option value="">All Statuses</option>' + ''.join(
-            f'<option value="{s}" {"selected" if status == s else ""}>{s.replace("_", " ").title()}</option>'
-            for s in status_options
-        )
         
         # Build table rows
         files_rows = ''
@@ -78,14 +62,14 @@ async def list_files(
                 edit_mappings_cell = ""
                 reprocess_cell = ""
                 if file.status == FileStatus.NEW_TEMPLATE_REQUIRED:
-                    edit_mappings_cell = f'<a href="/mappings/file/{file.id}" class="mappings-link" style="color: #007bff; text-decoration: none;">📋 Edit Mappings</a>'
-                    reprocess_cell = f'<button onclick="reprocessFile(this, {file.id}, {json.dumps(file.filename)})" class="btn-reprocess">🔄 Reprocess</button>'
+                    edit_mappings_cell = f'<a href="/mappings/file/{file.id}" class="btn-link">Edit Mappings</a>'
+                    reprocess_cell = f'<button class="btn-link reprocess-btn" data-file-id="{file.id}" data-filename="{file.filename.replace(chr(34), "&quot;").replace(chr(39), "&#39;")}">Reprocess</button>'
                 else:
                     edit_mappings_cell = "-"
                     reprocess_cell = "-"
                 
                 files_rows += f'''
-                <tr>
+                <tr data-file-id="{file.id}" data-filename="{file.filename.replace('"', '&quot;')}">
                     <td>{file.id}</td>
                     <td><a href="/files/{file.id}" class="file-link">{file.filename}</a></td>
                     <td><span class="badge badge-{status_class}">{status_display}</span></td>
@@ -96,246 +80,300 @@ async def list_files(
                     <td style="text-align: center;">{edit_mappings_cell}</td>
                     <td style="text-align: center;">{reprocess_cell}</td>
                     <td style="text-align: center;">
-                        <button onclick="deleteFile(this, {file.id}, {json.dumps(file.filename)})" class="btn-delete">Delete</button>
+                        <button class="btn-delete" data-file-id="{file.id}" data-filename="{file.filename.replace('"', '&quot;')}">Delete</button>
                     </td>
                 </tr>
                 '''
         else:
             files_rows = '<tr><td colspan="10"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No files found</p></div></td></tr>'
         
-        html_content = f'''
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Bordereaux Files</title>
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                    background: #f5f5f5;
-                    padding: 20px;
-                }}
-                .container {{
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    background: white;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    padding: 30px;
-                }}
-                h1 {{
-                    color: #333;
-                    margin-bottom: 20px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }}
-                .header-actions {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 20px;
-                }}
-                .btn-back {{
-                    padding: 10px 20px;
-                    background: #6c757d;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    text-decoration: none;
+        page_css = """
+                h1 {
+                    color: #003781;
+                    margin-bottom: 30px;
+                    font-size: 28px;
                     font-weight: 600;
-                    display: inline-block;
-                    transition: all 0.2s;
-                }}
-                .btn-back:hover {{
-                    background: #545b62;
-                    transform: translateY(-2px);
-                }}
-                .btn {{
-                    padding: 10px 20px;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    text-decoration: none;
-                    display: inline-block;
-                    font-size: 14px;
-                    font-weight: 600;
-                    transition: transform 0.2s;
-                }}
-                .btn-primary {{
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                }}
-                .btn-primary:hover {{
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
-                }}
-                .filters {{
-                    display: flex;
-                    gap: 15px;
-                    margin-bottom: 20px;
-                    align-items: center;
-                }}
-                .filter-group {{
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }}
-                .filter-group label {{
-                    font-weight: 600;
-                    color: #555;
-                }}
-                select, input {{
-                    padding: 8px 12px;
-                    border: 1px solid #ddd;
-                    border-radius: 6px;
-                    font-size: 14px;
-                }}
-                table {{
+                    letter-spacing: -0.5px;
+                }
+                table {
                     width: 100%;
                     border-collapse: collapse;
                     margin-top: 20px;
-                }}
-                th {{
+                }
+                th {
                     background: #f8f9fa;
-                    padding: 12px;
+                    padding: 14px 12px;
                     text-align: left;
                     font-weight: 600;
-                    color: #555;
+                    color: #003781;
                     border-bottom: 2px solid #dee2e6;
-                }}
-                td {{
-                    padding: 12px;
-                    border-bottom: 1px solid #dee2e6;
-                }}
-                tr:hover {{
+                    font-size: 13px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    cursor: pointer;
+                    user-select: none;
+                    position: relative;
+                }
+                th.sortable:hover {
+                    background: #e9ecef;
+                }
+                th.sortable::after {
+                    content: ' ↕';
+                    opacity: 0.5;
+                    font-size: 10px;
+                    margin-left: 5px;
+                }
+                th.sort-asc::after {
+                    content: ' ↑';
+                    opacity: 1;
+                }
+                th.sort-desc::after {
+                    content: ' ↓';
+                    opacity: 1;
+                }
+                td {
+                    padding: 14px 12px;
+                    border-bottom: 1px solid #e9ecef;
+                    font-size: 14px;
+                    color: #495057;
+                }
+                tr:hover {
                     background: #f8f9fa;
-                }}
-                .file-link {{
-                    color: #667eea;
+                }
+                .file-link {
+                    color: #003781;
                     text-decoration: none;
-                    font-weight: 600;
-                }}
-                .file-link:hover {{
+                    font-weight: 500;
+                }
+                .file-link:hover {
                     text-decoration: underline;
-                }}
-                .badge {{
-                    padding: 4px 12px;
-                    border-radius: 12px;
+                    color: #002d66;
+                }
+                .btn-link {
+                    color: #003781;
+                    text-decoration: none;
+                    font-weight: 500;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                    display: inline-block;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
                     font-size: 12px;
+                }
+                .btn-link:hover {
+                    background: #f8f9fa;
+                    color: #002d66;
+                }
+                button.btn-link {
+                    font-family: inherit;
+                }
+                .badge {
+                    padding: 4px 10px;
+                    border-radius: 3px;
+                    font-size: 11px;
                     font-weight: 600;
                     text-transform: uppercase;
-                }}
-                .badge-pending {{ background: #fff3cd; color: #856404; }}
-                .badge-received {{ background: #d1ecf1; color: #0c5460; }}
-                .badge-processing {{ background: #d4edda; color: #155724; }}
-                .badge-processed-ok {{ background: #d4edda; color: #155724; }}
-                .badge-processed-with-errors {{ background: #f8d7da; color: #721c24; }}
-                .badge-failed {{ background: #f8d7da; color: #721c24; }}
-                .badge-new-template-required {{ background: #fff3cd; color: #856404; }}
-                .btn-reprocess {{
-                    padding: 6px 12px;
-                    background: #28a745;
+                    letter-spacing: 0.3px;
+                }
+                .badge-pending { background: #fff3cd; color: #856404; }
+                .badge-received { background: #d1ecf1; color: #0c5460; }
+                .badge-processing { background: #cfe2ff; color: #003781; }
+                .badge-processed-ok { background: #d1e7dd; color: #0f5132; }
+                .badge-processed-with-errors { background: #f8d7da; color: #842029; }
+                .badge-failed { background: #f8d7da; color: #842029; }
+                .badge-new-template-required { background: #fff3cd; color: #856404; }
+                .btn-reprocess {
+                    padding: 6px 14px;
+                    background: #198754;
                     color: white;
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
                     font-size: 12px;
-                    font-weight: 600;
-                }}
-                .btn-reprocess:hover {{
-                    background: #218838;
-                }}
-                .btn-reprocess:disabled {{
+                    font-weight: 500;
+                    transition: all 0.2s;
+                }
+                .btn-reprocess:hover {
+                    background: #157347;
+                }
+                .btn-reprocess:disabled {
                     background: #6c757d;
                     cursor: not-allowed;
                     opacity: 0.6;
-                }}
-                .btn-delete {{
-                    padding: 6px 12px;
+                }
+                .btn-edit-mappings {
+                    padding: 6px 14px;
+                    background: #003781;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: 500;
+                    transition: all 0.2s;
+                }
+                .btn-edit-mappings:hover {
+                    background: #002d66;
+                }
+                .btn-delete {
+                    padding: 6px 14px;
                     background: #dc3545;
                     color: white;
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
                     font-size: 12px;
-                    font-weight: 600;
-                }}
-                .btn-delete:hover {{
-                    background: #c82333;
-                }}
-                .btn-delete:disabled {{
+                    font-weight: 500;
+                    transition: all 0.2s;
+                }
+                .btn-delete:hover {
+                    background: #bb2d3b;
+                }
+                .btn-delete:disabled {
                     background: #6c757d;
                     cursor: not-allowed;
                     opacity: 0.6;
-                }}
-                .empty-state {{
+                }
+                .empty-state {
                     text-align: center;
                     padding: 60px 20px;
                     color: #999;
-                }}
-                .empty-state-icon {{
+                }
+                .empty-state-icon {
                     font-size: 48px;
                     margin-bottom: 10px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header-actions">
-                    <h1>📄 Bordereaux Files</h1>
-                    <div>
-                        <a href="/mappings" class="btn btn-secondary" style="margin-right: 10px;">📋 Templates</a>
-                        <a href="/files/upload" class="btn btn-primary" style="margin-right: 10px;">+ Upload File</a>
-                        <a href="/" class="btn-back">← Back to Home</a>
-                    </div>
-                </div>
+                }
+                """
+        
+        content = f'''
+                <h1>Bordereaux Files</h1>
                 
-                <div class="filters">
-                    <div class="filter-group">
-                        <label>Status:</label>
-                        <select id="statusFilter" onchange="filterFiles()">
-                            {status_filter_html}
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label>Limit:</label>
-                        <input type="number" id="limitFilter" value="{limit}" min="10" max="1000" step="10" onchange="filterFiles()">
-                    </div>
-                </div>
-                
-                <table>
+                <table id="filesTable">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Filename</th>
-                            <th>Status</th>
-                            <th>Sender</th>
-                            <th>Total Rows</th>
-                            <th>Processed</th>
-                            <th>Created</th>
+                            <th class="sortable" data-column="id">ID</th>
+                            <th class="sortable" data-column="filename">Filename</th>
+                            <th class="sortable" data-column="status">Status</th>
+                            <th class="sortable" data-column="sender">Sender</th>
+                            <th class="sortable" data-column="total_rows">Total Rows</th>
+                            <th class="sortable" data-column="processed_rows">Processed</th>
+                            <th class="sortable" data-column="created_at">Created</th>
                             <th>Edit Mappings</th>
                             <th>Reprocess</th>
                             <th>Delete</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="filesTableBody">
                         {files_rows}
                     </tbody>
                 </table>
-            </div>
-            
-            <script>
-                function filterFiles() {{
-                    const status = document.getElementById('statusFilter').value;
-                    const limit = document.getElementById('limitFilter').value;
-                    const params = new URLSearchParams();
-                    if (status) params.append('status', status);
-                    if (limit) params.append('limit', limit);
-                    window.location.href = '/files?' + params.toString();
+                
+                <script>
+                let allFilesData = [];
+                let currentSort = {{ column: 'created_at', direction: 'desc' }};
+                
+                // Store original data
+                document.querySelectorAll('#filesTableBody tr').forEach(row => {{
+                    if (row.cells.length > 0) {{
+                        const data = {{
+                            id: row.cells[0].textContent.trim(),
+                            filename: row.cells[1].querySelector('a') ? row.cells[1].querySelector('a').textContent.trim() : row.cells[1].textContent.trim(),
+                            status: row.cells[2].querySelector('.badge') ? row.cells[2].querySelector('.badge').textContent.trim() : row.cells[2].textContent.trim(),
+                            sender: row.cells[3].textContent.trim(),
+                            total_rows: parseInt(row.cells[4].textContent.trim()) || 0,
+                            processed_rows: parseInt(row.cells[5].textContent.trim()) || 0,
+                            created_at: row.cells[6].textContent.trim(),
+                            html: row.outerHTML
+                        }};
+                        allFilesData.push(data);
+                    }}
+                }});
+                
+                // Sorting functionality
+                document.querySelectorAll('th.sortable').forEach(header => {{
+                    header.addEventListener('click', function() {{
+                        const column = this.dataset.column;
+                        
+                        // Toggle sort direction
+                        if (currentSort.column === column) {{
+                            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                        }} else {{
+                            currentSort.column = column;
+                            currentSort.direction = 'asc';
+                        }}
+                        
+                        // Update header classes
+                        document.querySelectorAll('th.sortable').forEach(h => {{
+                            h.classList.remove('sort-asc', 'sort-desc');
+                        }});
+                        this.classList.add(`sort-${{currentSort.direction}}`);
+                        
+                        applySort();
+                    }});
+                }});
+                
+                function applySort() {{
+                    // Sort data
+                    const sortedData = [...allFilesData].sort((a, b) => {{
+                        let aVal = a[currentSort.column];
+                        let bVal = b[currentSort.column];
+                        
+                        // Handle numeric columns
+                        if (currentSort.column === 'id' || currentSort.column === 'total_rows' || currentSort.column === 'processed_rows') {{
+                            aVal = parseInt(aVal) || 0;
+                            bVal = parseInt(bVal) || 0;
+                        }} else {{
+                            aVal = String(aVal || '').toLowerCase();
+                            bVal = String(bVal || '').toLowerCase();
+                        }}
+                        
+                        if (currentSort.direction === 'asc') {{
+                            return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+                        }} else {{
+                            return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+                        }}
+                    }});
+                    
+                    // Update table
+                    const tbody = document.getElementById('filesTableBody');
+                    tbody.innerHTML = sortedData.map(file => file.html).join('');
+                    // Re-attach event listeners for buttons
+                    attachButtonListeners();
                 }}
+                
+                function attachButtonListeners() {{
+                    // Re-attach delete button listeners
+                    document.querySelectorAll('.btn-delete').forEach(button => {{
+                        if (!button.hasAttribute('data-listener-attached')) {{
+                            button.setAttribute('data-listener-attached', 'true');
+                            const fileId = button.getAttribute('data-file-id');
+                            const filename = button.getAttribute('data-filename');
+                            if (fileId && filename) {{
+                                button.onclick = function() {{ deleteFile(this, parseInt(fileId), filename); }};
+                            }}
+                        }}
+                    }});
+                    
+                    // Re-attach reprocess button listeners
+                    document.querySelectorAll('button.reprocess-btn').forEach(button => {{
+                        if (!button.hasAttribute('data-listener-attached')) {{
+                            button.setAttribute('data-listener-attached', 'true');
+                            const fileId = button.getAttribute('data-file-id');
+                            const filename = button.getAttribute('data-filename');
+                            if (fileId && filename) {{
+                                button.onclick = function() {{ reprocessFile(this, parseInt(fileId), filename); }};
+                            }}
+                        }}
+                    }});
+                }}
+                
+                // Attach initial listeners
+                attachButtonListeners();
+                
+                // Initialize sort indicator
+                document.querySelector('th[data-column="created_at"]').classList.add('sort-desc');
                 
                 async function reprocessFile(button, fileId, filename) {{
                     const confirmed = confirm(`Reprocess file "${{filename}}"?\\n\\nThis will attempt to match the file with an existing template and process it.`);
@@ -420,12 +458,17 @@ async def list_files(
                         button.innerHTML = originalText;
                     }}
                 }}
-            </script>
-        </body>
-        </html>
+                </script>
         '''
         
-        logger.info("Files listed", count=len(files), status=status, skip=skip, limit=limit)
+        html_content = wrap_with_layout(
+            content=content,
+            page_title="Bordereaux Files",
+            current_page="files",
+            additional_css=page_css
+        )
+        
+        logger.info("Files listed", count=len(files), skip=skip, limit=limit)
         return HTMLResponse(content=html_content)
     
     except Exception as e:
@@ -522,78 +565,46 @@ async def delete_file(
     )
 
 
-@router.get("/upload", response_class=HTMLResponse)
-async def upload_page():
-    """Serve the file upload page."""
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Upload Bordereaux File</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                padding: 20px;
-            }
-            .container {
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-                padding: 40px;
-                max-width: 600px;
-                width: 100%;
-            }
-            h1 {
-                color: #333;
-                margin-bottom: 10px;
-                font-size: 28px;
-            }
+@router.get("/upload/modal", response_class=HTMLResponse)
+async def upload_file_modal():
+    """Serve the file upload modal content."""
+    modal_css = """
             .subtitle {
-                color: #666;
-                margin-bottom: 30px;
+                color: #495057;
+                margin-bottom: 20px;
                 font-size: 14px;
+                font-weight: 400;
             }
             .upload-area {
-                border: 2px dashed #ddd;
-                border-radius: 8px;
+                border: 2px dashed #ced4da;
+                border-radius: 4px;
                 padding: 40px;
                 text-align: center;
-                transition: all 0.3s ease;
+                transition: all 0.2s ease;
                 cursor: pointer;
-                background: #f9f9f9;
+                background: #f8f9fa;
             }
             .upload-area:hover {
-                border-color: #667eea;
-                background: #f0f0ff;
+                border-color: #003781;
+                background: #f0f4ff;
             }
             .upload-area.dragover {
-                border-color: #667eea;
-                background: #e8e8ff;
+                border-color: #003781;
+                background: #e6edff;
             }
             .upload-icon {
                 font-size: 48px;
-                color: #667eea;
+                color: #003781;
                 margin-bottom: 15px;
             }
             .upload-text {
-                color: #666;
+                color: #495057;
                 margin-bottom: 10px;
                 font-size: 16px;
+                font-weight: 500;
             }
             .upload-hint {
-                color: #999;
+                color: #6c757d;
                 font-size: 12px;
             }
             input[type="file"] {
@@ -602,8 +613,9 @@ async def upload_page():
             .file-info {
                 margin-top: 20px;
                 padding: 15px;
-                background: #f0f0f0;
-                border-radius: 6px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
                 display: none;
             }
             .file-info.show {
@@ -611,31 +623,31 @@ async def upload_page():
             }
             .file-name {
                 font-weight: 600;
-                color: #333;
+                color: #003781;
                 margin-bottom: 5px;
             }
             .file-size {
-                color: #666;
+                color: #6c757d;
                 font-size: 14px;
             }
-            button {
+            button[type="submit"] {
                 width: 100%;
-                padding: 15px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 14px;
+                background: #003781;
                 color: white;
                 border: none;
-                border-radius: 8px;
+                border-radius: 4px;
                 font-size: 16px;
-                font-weight: 600;
+                font-weight: 500;
                 cursor: pointer;
                 margin-top: 20px;
-                transition: transform 0.2s ease;
+                transition: all 0.2s ease;
             }
-            button:hover:not(:disabled) {
-                transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            button[type="submit"]:hover:not(:disabled) {
+                background: #002d66;
             }
-            button:disabled {
+            button[type="submit"]:disabled {
+                background: #6c757d;
                 opacity: 0.6;
                 cursor: not-allowed;
             }
@@ -649,34 +661,34 @@ async def upload_page():
             .progress-bar {
                 width: 100%;
                 height: 8px;
-                background: #f0f0f0;
+                background: #e9ecef;
                 border-radius: 4px;
                 overflow: hidden;
             }
             .progress-fill {
                 height: 100%;
-                background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+                background: #003781;
                 width: 0%;
                 transition: width 0.3s ease;
             }
             .result {
                 margin-top: 20px;
-                padding: 20px;
-                border-radius: 8px;
+                padding: 16px;
+                border-radius: 4px;
                 display: none;
             }
             .result.show {
                 display: block;
             }
             .result.success {
-                background: #d4edda;
-                border: 1px solid #c3e6cb;
-                color: #155724;
+                background: #d1e7dd;
+                border: 1px solid #badbcc;
+                color: #0f5132;
             }
             .result.error {
                 background: #f8d7da;
-                border: 1px solid #f5c6cb;
-                color: #721c24;
+                border: 1px solid #f1aeb5;
+                color: #842029;
             }
             .result-info {
                 margin-top: 15px;
@@ -686,36 +698,22 @@ async def upload_page():
                 margin: 5px 0;
             }
             .link {
-                color: #667eea;
+                color: #003781;
                 text-decoration: none;
-                font-weight: 600;
+                font-weight: 500;
             }
             .link:hover {
                 text-decoration: underline;
+                color: #002d66;
             }
-            .btn-back {
-                padding: 10px 20px;
-                background: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                text-decoration: none;
-                font-weight: 600;
-                display: inline-block;
-                transition: all 0.2s;
-            }
-            .btn-back:hover {
-                background: #545b62;
-                transform: translateY(-2px);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h1>📄 Upload Bordereaux File</h1>
-                <a href="/" class="btn-back">← Back to Home</a>
-            </div>
+            """
+    
+    modal_content = f"""
+        <div class="modal-header">
+            <h2>Upload Bordereaux File</h2>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body">
             <p class="subtitle">Upload an Excel or CSV file to process</p>
             
             <form id="uploadForm" enctype="multipart/form-data">
@@ -742,8 +740,359 @@ async def upload_page():
             
             <div class="result" id="result"></div>
         </div>
-        
+        <style>
+            {modal_css}
+        </style>
         <script>
+            (function() {{
+                // Wait for DOM to be ready
+                setTimeout(function() {{
+                    const uploadArea = document.getElementById('uploadArea');
+                    const fileInput = document.getElementById('fileInput');
+                    const fileInfo = document.getElementById('fileInfo');
+                    const fileName = document.getElementById('fileName');
+                    const fileSize = document.getElementById('fileSize');
+                    const uploadForm = document.getElementById('uploadForm');
+                    const submitBtn = document.getElementById('submitBtn');
+                    const progress = document.getElementById('progress');
+                    const progressFill = document.getElementById('progressFill');
+                    const result = document.getElementById('result');
+                    
+                    if (!uploadArea || !fileInput || !uploadForm) {{
+                        console.error('Modal elements not found');
+                        return;
+                    }}
+                    
+                    // Click to select file
+                    uploadArea.addEventListener('click', () => fileInput.click());
+                    
+                    // Drag and drop
+                    uploadArea.addEventListener('dragover', (e) => {{
+                        e.preventDefault();
+                        uploadArea.classList.add('dragover');
+                    }});
+                    
+                    uploadArea.addEventListener('dragleave', () => {{
+                        uploadArea.classList.remove('dragover');
+                    }});
+                    
+                    uploadArea.addEventListener('drop', (e) => {{
+                        e.preventDefault();
+                        uploadArea.classList.remove('dragover');
+                        const files = e.dataTransfer.files;
+                        if (files.length > 0) {{
+                            fileInput.files = files;
+                            handleFileSelect(files[0]);
+                        }}
+                    }});
+                    
+                    // File input change
+                    fileInput.addEventListener('change', (e) => {{
+                        if (e.target.files.length > 0) {{
+                            handleFileSelect(e.target.files[0]);
+                        }}
+                    }});
+                    
+                    function handleFileSelect(file) {{
+                        fileName.textContent = file.name;
+                        fileSize.textContent = formatFileSize(file.size);
+                        fileInfo.classList.add('show');
+                        result.classList.remove('show');
+                    }}
+                    
+                    function formatFileSize(bytes) {{
+                        if (bytes === 0) return '0 Bytes';
+                        const k = 1024;
+                        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+                    }}
+                    
+                    // Form submission
+                    uploadForm.addEventListener('submit', async (e) => {{
+                        e.preventDefault();
+                        
+                        if (!fileInput.files || fileInput.files.length === 0) {{
+                            showResult('error', 'Please select a file first', null);
+                            return;
+                        }}
+                        
+                        const formData = new FormData();
+                        formData.append('file', fileInput.files[0]);
+                        
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Processing...';
+                        progress.classList.add('show');
+                        result.classList.remove('show');
+                        
+                        // Simulate progress
+                        let progressValue = 0;
+                        const progressInterval = setInterval(() => {{
+                            progressValue += 10;
+                            if (progressValue < 90) {{
+                                progressFill.style.width = progressValue + '%';
+                            }}
+                        }}, 200);
+                        
+                        try {{
+                            const response = await fetch('/files/upload', {{
+                                method: 'POST',
+                                body: formData
+                            }});
+                            
+                            clearInterval(progressInterval);
+                            progressFill.style.width = '100%';
+                            
+                            const data = await response.json();
+                            
+                            if (response.ok) {{
+                                showResult('success', 'File uploaded and processed successfully!', data);
+                                setTimeout(() => {{
+                                    window.location.reload();
+                                }}, 2000);
+                            }} else {{
+                                showResult('error', 'Error processing file: ' + (data.detail || 'Unknown error'), null);
+                            }}
+                        }} catch (error) {{
+                            clearInterval(progressInterval);
+                            showResult('error', 'Error uploading file: ' + error.message, null);
+                        }} finally {{
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Upload and Process';
+                            setTimeout(() => {{
+                                progress.classList.remove('show');
+                                progressFill.style.width = '0%';
+                            }}, 1000);
+                        }}
+                    }});
+                    
+                    function showResult(type, message, data) {{
+                        result.className = 'result ' + type + ' show';
+                        let html = '<strong>' + message + '</strong>';
+                        
+                        if (data) {{
+                            html += '<div class="result-info">';
+                            if (data.file_id) {{
+                                html += '<p>File ID: <strong>' + data.file_id + '</strong></p>';
+                                html += '<p><a href="/files/' + data.file_id + '" class="link">View file details</a></p>';
+                            }}
+                            if (data.total_rows !== undefined) {{
+                                html += '<p>Total rows: ' + data.total_rows + '</p>';
+                                html += '<p>Valid rows: ' + (data.valid_rows || 0) + '</p>';
+                                html += '<p>Error rows: ' + (data.error_rows || 0) + '</p>';
+                            }}
+                            if (data.status) {{
+                                html += '<p>Status: <strong>' + data.status + '</strong></p>';
+                            }}
+                            if (data.template_id) {{
+                                html += '<p>Template: ' + data.template_name + ' (' + data.template_id + ')</p>';
+                            }}
+                            if (data.proposal_path) {{
+                                html += '<p>Mapping proposal generated. Status: <strong>new_template_required</strong></p>';
+                            }}
+                            html += '</div>';
+                        }}
+                        
+                        result.innerHTML = html;
+                    }}
+                }}, 100);
+            }})();
+        </script>
+    """
+    return HTMLResponse(content=modal_content)
+
+
+@router.get("/upload", response_class=HTMLResponse)
+async def upload_page():
+    """Serve the file upload page."""
+    page_css = """
+            h1 {
+                color: #003781;
+                margin-bottom: 12px;
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.5px;
+            }
+            .subtitle {
+                color: #495057;
+                margin-bottom: 30px;
+                font-size: 14px;
+                font-weight: 400;
+            }
+            .upload-area {
+                border: 2px dashed #ced4da;
+                border-radius: 4px;
+                padding: 40px;
+                text-align: center;
+                transition: all 0.2s ease;
+                cursor: pointer;
+                background: #f8f9fa;
+            }
+            .upload-area:hover {
+                border-color: #003781;
+                background: #f0f4ff;
+            }
+            .upload-area.dragover {
+                border-color: #003781;
+                background: #e6edff;
+            }
+            .upload-icon {
+                font-size: 48px;
+                color: #003781;
+                margin-bottom: 15px;
+            }
+            .upload-text {
+                color: #495057;
+                margin-bottom: 10px;
+                font-size: 16px;
+                font-weight: 500;
+            }
+            .upload-hint {
+                color: #6c757d;
+                font-size: 12px;
+            }
+            input[type="file"] {
+                display: none;
+            }
+            .file-info {
+                margin-top: 20px;
+                padding: 15px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                display: none;
+            }
+            .file-info.show {
+                display: block;
+            }
+            .file-name {
+                font-weight: 600;
+                color: #003781;
+                margin-bottom: 5px;
+            }
+            .file-size {
+                color: #6c757d;
+                font-size: 14px;
+            }
+            button {
+                width: 100%;
+                padding: 14px;
+                background: #003781;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 16px;
+                font-weight: 500;
+                cursor: pointer;
+                margin-top: 20px;
+                transition: all 0.2s ease;
+            }
+            button:hover:not(:disabled) {
+                background: #002d66;
+            }
+            button:disabled {
+                background: #6c757d;
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+            .progress {
+                margin-top: 20px;
+                display: none;
+            }
+            .progress.show {
+                display: block;
+            }
+            .progress-bar {
+                width: 100%;
+                height: 8px;
+                background: #e9ecef;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            .progress-fill {
+                height: 100%;
+                background: #003781;
+                width: 0%;
+                transition: width 0.3s ease;
+            }
+            .result {
+                margin-top: 20px;
+                padding: 16px;
+                border-radius: 4px;
+                display: none;
+            }
+            .result.show {
+                display: block;
+            }
+            .result.success {
+                background: #d1e7dd;
+                border: 1px solid #badbcc;
+                color: #0f5132;
+            }
+            .result.error {
+                background: #f8d7da;
+                border: 1px solid #f1aeb5;
+                color: #842029;
+            }
+            .result-info {
+                margin-top: 15px;
+                font-size: 14px;
+            }
+            .result-info p {
+                margin: 5px 0;
+            }
+            .link {
+                color: #003781;
+                text-decoration: none;
+                font-weight: 500;
+            }
+            .link:hover {
+                text-decoration: underline;
+                color: #002d66;
+            }
+            .btn-back {
+                padding: 10px 20px;
+                background: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                text-decoration: none;
+                font-weight: 500;
+                display: inline-block;
+                transition: all 0.2s;
+                font-size: 14px;
+            }
+            """
+    
+    content = """
+            <h1>Upload Bordereaux File</h1>
+            <p class="subtitle">Upload an Excel or CSV file to process</p>
+            
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">Click to select or drag and drop</div>
+                    <div class="upload-hint">Supports .xlsx, .xls, and .csv files</div>
+                    <input type="file" id="fileInput" name="file" accept=".xlsx,.xls,.csv" required>
+                </div>
+                
+                <div class="file-info" id="fileInfo">
+                    <div class="file-name" id="fileName"></div>
+                    <div class="file-size" id="fileSize"></div>
+                </div>
+                
+                <div class="progress" id="progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+                
+                <button type="submit" id="submitBtn">Upload and Process</button>
+            </form>
+            
+            <div class="result" id="result"></div>
+            
+            <script>
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
             const fileInfo = document.getElementById('fileInfo');
@@ -880,9 +1229,14 @@ async def upload_page():
                 result.innerHTML = html;
             }
         </script>
-    </body>
-    </html>
     """
+    
+    html_content = wrap_with_layout(
+        content=content,
+        page_title="Upload Bordereaux File",
+        current_page="upload",
+        additional_css=page_css
+    )
     return HTMLResponse(content=html_content)
 
 

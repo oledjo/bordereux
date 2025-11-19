@@ -10,6 +10,7 @@ from app.models.template import TemplateCreate, TemplateUpdate, FileType, Templa
 from app.services.template_repository import TemplateRepository
 from app.services.parsing_service import ParsingService
 from app.core.logging import get_structured_logger
+from app.core.layout import wrap_with_layout
 import json
 from pathlib import Path
 
@@ -129,144 +130,178 @@ async def view_file_mappings(
     # Set initial values via JavaScript
     initial_mappings_js = json.dumps(column_mappings)
     
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Edit Mappings - {bordereaux_file.filename}</title>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: #f5f5f5;
-                padding: 20px;
-            }}
-            .container {{
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                padding: 30px;
-            }}
-            h1 {{
-                color: #333;
-                margin-bottom: 10px;
-            }}
-            .file-info {{
+    page_css = """
+            h1 {
+                color: #003781;
+                margin-bottom: 20px;
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.5px;
+            }
+            h2 {
+                color: #003781;
+                margin-top: 30px;
+                margin-bottom: 15px;
+                font-size: 20px;
+                font-weight: 600;
+            }
+            .file-info {
                 background: #f8f9fa;
                 padding: 15px;
-                border-radius: 6px;
+                border-radius: 4px;
                 margin-bottom: 20px;
-            }}
-            .file-info p {{
+                border: 1px solid #e9ecef;
+            }
+            .file-info p {
                 margin: 5px 0;
-                color: #666;
-            }}
-            .file-info strong {{
-                color: #333;
-            }}
-            table {{
+                color: #495057;
+                font-size: 14px;
+            }
+            .file-info strong {
+                color: #003781;
+                font-weight: 600;
+            }
+            .alert {
+                padding: 15px;
+                border-radius: 4px;
+                margin-bottom: 20px;
+                border: 1px solid #bee5eb;
+            }
+            .alert-info {
+                background: #d1ecf1;
+                color: #0c5460;
+            }
+            .alert-info strong {
+                color: #0c5460;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            .form-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+                color: #495057;
+                font-size: 14px;
+            }
+            .form-group input[type="text"],
+            .form-group select {
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 14px;
+                color: #495057;
+                background: white;
+            }
+            .form-group input[type="text"]:focus,
+            .form-group select:focus {
+                outline: none;
+                border-color: #003781;
+                box-shadow: 0 0 0 2px rgba(0, 55, 129, 0.1);
+            }
+            .form-group small {
+                display: block;
+                margin-top: 5px;
+                color: #6c757d;
+                font-size: 12px;
+            }
+            table {
                 width: 100%;
                 border-collapse: collapse;
                 margin: 20px 0;
-            }}
-            th, td {{
-                padding: 12px;
+            }
+            th, td {
+                padding: 14px 12px;
                 text-align: left;
-                border-bottom: 1px solid #ddd;
-            }}
-            th {{
+                border-bottom: 1px solid #e9ecef;
+            }
+            th {
                 background: #f8f9fa;
                 font-weight: 600;
-                color: #333;
-            }}
-            .mapping-select {{
+                color: #003781;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #dee2e6;
+            }
+            td {
+                font-size: 14px;
+                color: #495057;
+            }
+            tr:hover {
+                background: #f8f9fa;
+            }
+            .mapping-select {
                 width: 100%;
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 12px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
                 font-size: 14px;
-            }}
-            .confidence {{
-                padding: 4px 8px;
-                border-radius: 4px;
+                color: #495057;
+                background: white;
+            }
+            .mapping-select:focus {
+                outline: none;
+                border-color: #003781;
+                box-shadow: 0 0 0 2px rgba(0, 55, 129, 0.1);
+            }
+            .confidence {
+                padding: 4px 10px;
+                border-radius: 3px;
                 font-weight: 600;
-                font-size: 12px;
-            }}
-            .confidence-high {{
-                background: #d4edda;
-                color: #155724;
-            }}
-            .confidence-medium {{
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .confidence-high {
+                background: #d1e7dd;
+                color: #0f5132;
+            }
+            .confidence-medium {
                 background: #fff3cd;
                 color: #856404;
-            }}
-            .confidence-low {{
+            }
+            .confidence-low {
                 background: #f8d7da;
-                color: #721c24;
-            }}
-            .actions {{
+                color: #842029;
+            }
+            .actions {
                 margin-top: 30px;
                 display: flex;
-                gap: 10px;
-            }}
-            button {{
-                padding: 12px 24px;
+                gap: 12px;
+                align-items: center;
+            }
+            button[type="submit"] {
+                padding: 10px 20px;
+                background: #003781;
+                color: white;
                 border: none;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.2s;
-            }}
-            .btn-primary {{
-                background: #007bff;
-                color: white;
-            }}
-            .btn-primary:hover {{
-                background: #0056b3;
-            }}
-            .btn-secondary {{
-                background: #6c757d;
-                color: white;
-            }}
-            .btn-secondary:hover {{
-                background: #545b62;
-            }}
-            .form-group {{
-                margin-bottom: 20px;
-            }}
-            .form-group label {{
-                display: block;
-                margin-bottom: 5px;
-                font-weight: 600;
-                color: #333;
-            }}
-            .form-group input, .form-group select {{
-                width: 100%;
-                padding: 8px;
-                border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
-            }}
-            .alert {{
-                padding: 15px;
-                border-radius: 6px;
-                margin-bottom: 20px;
-            }}
-            .alert-info {{
-                background: #d1ecf1;
-                color: #0c5460;
-                border: 1px solid #bee5eb;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>📋 Edit Column Mappings</h1>
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            button[type="submit"]:hover {
+                background: #002d66;
+            }
+            .btn-link {
+                color: #003781;
+                text-decoration: none;
+                font-weight: 500;
+                padding: 6px 12px;
+                border-radius: 4px;
+                transition: all 0.2s;
+            }
+            .btn-link:hover {
+                background: #f8f9fa;
+                color: #002d66;
+            }
+            """
+    
+    content = f"""
+            <h1>Edit Column Mappings</h1>
             
             <div class="file-info">
                 <p><strong>File:</strong> {bordereaux_file.filename}</p>
@@ -292,7 +327,7 @@ async def view_file_mappings(
                     <input type="text" id="template_id" name="template_id" required 
                            pattern="[a-z0-9_]+" 
                            value="{bordereaux_file.filename.lower().replace('.xlsx', '').replace('.xls', '').replace('.csv', '').replace(' ', '_').replace('-', '_')}">
-                    <small style="color: #666;">Lowercase letters, numbers, and underscores only</small>
+                    <small>Lowercase letters, numbers, and underscores only</small>
                 </div>
                 
                 <div class="form-group">
@@ -310,7 +345,7 @@ async def view_file_mappings(
                            value="{metadata.get('sender', '').split('@')[0] if metadata.get('sender') else ''}">
                 </div>
                 
-                <h2 style="margin-top: 30px; margin-bottom: 15px;">Column Mappings</h2>
+                <h2>Column Mappings</h2>
                 <table>
                     <thead>
                         <tr>
@@ -325,25 +360,29 @@ async def view_file_mappings(
                 </table>
                 
                 <div class="actions">
-                    <button type="submit" class="btn-primary">💾 Save as Template</button>
-                    <a href="/files/{file_id}" class="btn-secondary" style="text-decoration: none; display: inline-block;">← Back to File</a>
+                    <button type="submit">Save as Template</button>
+                    <a href="/files/{file_id}" class="btn-link">Back to File</a>
                 </div>
             </form>
-        </div>
-        
-        <script>
-            // Set initial mapping values
-            const initialMappings = {initial_mappings_js};
-            document.querySelectorAll('.mapping-select').forEach(select => {{
-                const header = select.dataset.header;
-                if (initialMappings[header]) {{
-                    select.value = initialMappings[header];
-                }}
-            }});
-        </script>
-    </body>
-    </html>
+            
+            <script>
+                // Set initial mapping values
+                const initialMappings = {initial_mappings_js};
+                document.querySelectorAll('.mapping-select').forEach(select => {{
+                    const header = select.dataset.header;
+                    if (initialMappings[header]) {{
+                        select.value = initialMappings[header];
+                    }}
+                }});
+            </script>
     """
+    
+    html_content = wrap_with_layout(
+        content=content,
+        page_title=f"Edit Mappings - {bordereaux_file.filename}",
+        current_page="templates",
+        additional_css=page_css
+    )
     
     return HTMLResponse(content=html_content)
 
@@ -430,78 +469,45 @@ async def save_mappings_as_template(
 
 
 
-@router.get("/upload", response_class=HTMLResponse)
-async def upload_template_page():
-    """Serve the template upload page."""
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Upload Template</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                padding: 20px;
-            }
-            .container {
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-                padding: 40px;
-                max-width: 600px;
-                width: 100%;
-            }
-            h1 {
-                color: #333;
-                margin-bottom: 10px;
-                font-size: 28px;
-            }
+@router.get("/upload/modal", response_class=HTMLResponse)
+async def upload_template_modal():
+    """Serve the template upload modal content."""
+    modal_css = """
             .subtitle {
-                color: #666;
-                margin-bottom: 30px;
+                color: #495057;
+                margin-bottom: 20px;
                 font-size: 14px;
+                font-weight: 400;
             }
             .upload-area {
-                border: 2px dashed #ddd;
-                border-radius: 8px;
+                border: 2px dashed #ced4da;
+                border-radius: 4px;
                 padding: 40px;
                 text-align: center;
-                transition: all 0.3s ease;
+                transition: all 0.2s ease;
                 cursor: pointer;
-                background: #f9f9f9;
+                background: #f8f9fa;
             }
             .upload-area:hover {
-                border-color: #667eea;
-                background: #f0f0ff;
+                border-color: #003781;
+                background: #f0f4ff;
             }
             .upload-area.dragover {
-                border-color: #667eea;
-                background: #e8e8ff;
+                border-color: #003781;
+                background: #e6edff;
             }
             .upload-icon {
                 font-size: 48px;
-                color: #667eea;
+                color: #003781;
                 margin-bottom: 15px;
             }
             .upload-text {
-                color: #666;
+                color: #495057;
                 margin-bottom: 10px;
                 font-size: 16px;
             }
             .upload-hint {
-                color: #999;
+                color: #6c757d;
                 font-size: 12px;
             }
             input[type="file"] {
@@ -510,8 +516,9 @@ async def upload_template_page():
             .file-info {
                 margin-top: 20px;
                 padding: 15px;
-                background: #f0f0f0;
-                border-radius: 6px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
                 display: none;
             }
             .file-info.show {
@@ -519,52 +526,41 @@ async def upload_template_page():
             }
             .file-name {
                 font-weight: 600;
-                color: #333;
+                color: #003781;
                 margin-bottom: 5px;
             }
             .file-size {
-                color: #666;
+                color: #6c757d;
                 font-size: 14px;
             }
-            button {
+            button#uploadButton {
                 width: 100%;
-                padding: 15px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 14px;
+                background: #003781;
                 color: white;
                 border: none;
-                border-radius: 8px;
+                border-radius: 4px;
                 font-size: 16px;
-                font-weight: 600;
+                font-weight: 500;
                 cursor: pointer;
                 margin-top: 20px;
-                transition: all 0.3s ease;
+                transition: all 0.2s ease;
             }
-            button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            button#uploadButton:hover:not(:disabled) {
+                background: #002d66;
             }
-            button:disabled {
-                background: #ccc;
+            button#uploadButton:disabled {
+                background: #6c757d;
                 cursor: not-allowed;
-                transform: none;
-            }
-            .back-link {
-                display: inline-block;
-                margin-top: 20px;
-                color: #667eea;
-                text-decoration: none;
-                font-size: 14px;
-            }
-            .back-link:hover {
-                text-decoration: underline;
+                opacity: 0.6;
             }
             .error {
                 margin-top: 15px;
                 padding: 12px;
-                background: #fee;
-                border: 1px solid #fcc;
-                border-radius: 6px;
-                color: #c33;
+                background: #f8d7da;
+                border: 1px solid #f1aeb5;
+                border-radius: 4px;
+                color: #842029;
                 display: none;
             }
             .error.show {
@@ -573,10 +569,10 @@ async def upload_template_page():
             .success {
                 margin-top: 15px;
                 padding: 12px;
-                background: #efe;
-                border: 1px solid #cfc;
-                border-radius: 6px;
-                color: #3c3;
+                background: #d1e7dd;
+                border: 1px solid #badbcc;
+                border-radius: 4px;
+                color: #0f5132;
                 display: none;
             }
             .success.show {
@@ -586,9 +582,10 @@ async def upload_template_page():
                 margin-top: 20px;
                 padding: 15px;
                 background: #f8f9fa;
-                border-radius: 6px;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
                 font-size: 12px;
-                color: #666;
+                color: #495057;
             }
             .example-link code {
                 background: #e9ecef;
@@ -596,11 +593,14 @@ async def upload_template_page():
                 border-radius: 3px;
                 font-family: 'Courier New', monospace;
             }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>📤 Upload Template</h1>
+            """
+    
+    modal_content = f"""
+        <div class="modal-header">
+            <h2>Upload Template</h2>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body">
             <p class="subtitle">Upload a template JSON file to add it to the system</p>
             
             <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
@@ -621,8 +621,6 @@ async def upload_template_page():
             
             <button id="uploadButton" onclick="uploadTemplate()" disabled>Upload Template</button>
             
-            <a href="/mappings" class="back-link">← Back to Templates</a>
-            
             <div class="example-link">
                 <strong>Template JSON Format:</strong><br>
                 <code>template_id</code>, <code>name</code>, <code>file_type</code> (claims/premium/exposure), 
@@ -630,8 +628,291 @@ async def upload_template_page():
                 <code>version</code> (optional), <code>active_flag</code> (optional)
             </div>
         </div>
-        
+        <style>
+            {modal_css}
+        </style>
         <script>
+            const fileInput = document.getElementById('fileInput');
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const uploadButton = document.getElementById('uploadButton');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            let selectedFile = null;
+            
+            fileInput.addEventListener('change', function(e) {{
+                handleFileSelect(e.target.files[0]);
+            }});
+            
+            uploadArea.addEventListener('dragover', function(e) {{
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            }});
+            
+            uploadArea.addEventListener('dragleave', function(e) {{
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+            }});
+            
+            uploadArea.addEventListener('drop', function(e) {{
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {{
+                    handleFileSelect(e.dataTransfer.files[0]);
+                }}
+            }});
+            
+            function handleFileSelect(file) {{
+                if (!file) return;
+                
+                if (!file.name.endsWith('.json')) {{
+                    showError('Please select a JSON file');
+                    return;
+                }}
+                
+                selectedFile = file;
+                fileName.textContent = file.name;
+                fileSize.textContent = formatFileSize(file.size);
+                fileInfo.classList.add('show');
+                uploadButton.disabled = false;
+                hideError();
+                hideSuccess();
+            }}
+            
+            function formatFileSize(bytes) {{
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            }}
+            
+            async function uploadTemplate() {{
+                if (!selectedFile) {{
+                    showError('Please select a file first');
+                    return;
+                }}
+                
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                
+                uploadButton.disabled = true;
+                uploadButton.textContent = 'Uploading...';
+                hideError();
+                hideSuccess();
+                
+                try {{
+                    const response = await fetch('/mappings/upload', {{
+                        method: 'POST',
+                        body: formData
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {{
+                        showSuccess(`Template "${{result.template.name}}" uploaded successfully! Redirecting...`);
+                        setTimeout(() => {{
+                            window.location.reload();
+                        }}, 2000);
+                    }} else {{
+                        showError(result.detail || 'Error uploading template');
+                        uploadButton.disabled = false;
+                        uploadButton.textContent = 'Upload Template';
+                    }}
+                }} catch (error) {{
+                    showError('Error uploading template: ' + error.message);
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Upload Template';
+                }}
+            }}
+            
+            function showError(message) {{
+                errorMessage.textContent = message;
+                errorMessage.classList.add('show');
+            }}
+            
+            function hideError() {{
+                errorMessage.classList.remove('show');
+            }}
+            
+            function showSuccess(message) {{
+                successMessage.textContent = message;
+                successMessage.classList.add('show');
+            }}
+            
+            function hideSuccess() {{
+                successMessage.classList.remove('show');
+            }}
+        </script>
+    """
+    return HTMLResponse(content=modal_content)
+
+
+@router.get("/upload", response_class=HTMLResponse)
+async def upload_template_page():
+    """Serve the template upload page."""
+    page_css = """
+            h1 {
+                color: #003781;
+                margin-bottom: 12px;
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.5px;
+            }
+            .subtitle {
+                color: #495057;
+                margin-bottom: 30px;
+                font-size: 14px;
+                font-weight: 400;
+            }
+            .upload-area {
+                border: 2px dashed #ced4da;
+                border-radius: 4px;
+                padding: 40px;
+                text-align: center;
+                transition: all 0.2s ease;
+                cursor: pointer;
+                background: #f8f9fa;
+            }
+            .upload-area:hover {
+                border-color: #003781;
+                background: #f0f4ff;
+            }
+            .upload-area.dragover {
+                border-color: #003781;
+                background: #e6edff;
+            }
+            .upload-icon {
+                font-size: 48px;
+                color: #003781;
+                margin-bottom: 15px;
+            }
+            .upload-text {
+                color: #495057;
+                margin-bottom: 10px;
+                font-size: 16px;
+            }
+            .upload-hint {
+                color: #6c757d;
+                font-size: 12px;
+            }
+            input[type="file"] {
+                display: none;
+            }
+            .file-info {
+                margin-top: 20px;
+                padding: 15px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                display: none;
+            }
+            .file-info.show {
+                display: block;
+            }
+            .file-name {
+                font-weight: 600;
+                color: #003781;
+                margin-bottom: 5px;
+            }
+            .file-size {
+                color: #6c757d;
+                font-size: 14px;
+            }
+            button {
+                width: 100%;
+                padding: 14px;
+                background: #003781;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 16px;
+                font-weight: 500;
+                cursor: pointer;
+                margin-top: 20px;
+                transition: all 0.2s ease;
+            }
+            button:hover:not(:disabled) {
+                background: #002d66;
+            }
+            button:disabled {
+                background: #6c757d;
+                cursor: not-allowed;
+                opacity: 0.6;
+            }
+            .error {
+                margin-top: 15px;
+                padding: 12px;
+                background: #f8d7da;
+                border: 1px solid #f1aeb5;
+                border-radius: 4px;
+                color: #842029;
+                display: none;
+            }
+            .error.show {
+                display: block;
+            }
+            .success {
+                margin-top: 15px;
+                padding: 12px;
+                background: #d1e7dd;
+                border: 1px solid #badbcc;
+                border-radius: 4px;
+                color: #0f5132;
+                display: none;
+            }
+            .success.show {
+                display: block;
+            }
+            .example-link {
+                margin-top: 20px;
+                padding: 15px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+                font-size: 12px;
+                color: #495057;
+            }
+            .example-link code {
+                background: #e9ecef;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+            }
+            """
+    
+    content = """
+            <h1>Upload Template</h1>
+            <p class="subtitle">Upload a template JSON file to add it to the system</p>
+            
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">Click to select or drag and drop</div>
+                <div class="upload-hint">JSON template file</div>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".json" />
+            
+            <div class="file-info" id="fileInfo">
+                <div class="file-name" id="fileName"></div>
+                <div class="file-size" id="fileSize"></div>
+            </div>
+            
+            <div class="error" id="errorMessage"></div>
+            <div class="success" id="successMessage"></div>
+            
+            <button id="uploadButton" onclick="uploadTemplate()" disabled>Upload Template</button>
+            
+            <div class="example-link">
+                <strong>Template JSON Format:</strong><br>
+                <code>template_id</code>, <code>name</code>, <code>file_type</code> (claims/premium/exposure), 
+                <code>column_mappings</code> (source → canonical), <code>carrier</code> (optional), 
+                <code>version</code> (optional), <code>active_flag</code> (optional)
+            </div>
+            
+            <script>
             const fileInput = document.getElementById('fileInput');
             const uploadArea = document.getElementById('uploadArea');
             const fileInfo = document.getElementById('fileInfo');
@@ -746,9 +1027,14 @@ async def upload_template_page():
                 successMessage.classList.remove('show');
             }
         </script>
-    </body>
-    </html>
     """
+    
+    html_content = wrap_with_layout(
+        content=content,
+        page_title="Upload Template",
+        current_page="upload_template",
+        additional_css=page_css
+    )
     return HTMLResponse(content=html_content)
 
 
@@ -864,7 +1150,7 @@ async def list_templates(
             status_class = "active" if template.active_flag else "inactive"
             
             template_rows += f"""
-            <tr>
+            <tr data-template-id="{template.id}">
                 <td>{template.id}</td>
                 <td><strong>{template.template_id}</strong></td>
                 <td>{template.name}</td>
@@ -876,179 +1162,275 @@ async def list_templates(
                 <td>
                     <a href="/mappings/template/{template.id}" class="btn-link">View</a>
                     <a href="/mappings/template/{template.id}/edit" class="btn-link" style="margin-left: 10px;">Edit</a>
-                    <button onclick="deleteTemplateWithConfirm({template.id}, {json.dumps(template.name)}, {json.dumps(template.template_id)})" class="btn-delete" style="margin-left: 10px;">Delete</button>
+                    <button class="btn-delete delete-template-btn" style="margin-left: 10px;" 
+                            data-template-id="{template.id}" 
+                            data-template-name="{template.name.replace(chr(34), '&quot;').replace(chr(39), '&#39;')}" 
+                            data-template-template-id="{template.template_id}">Delete</button>
                 </td>
             </tr>
             """
     else:
         template_rows = '<tr><td colspan="9"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No templates found</p></div></td></tr>'
     
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Templates & Mappings</title>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: #f5f5f5;
-                padding: 20px;
-            }}
-            .container {{
-                max-width: 1400px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                padding: 30px;
-            }}
-            h1 {{
-                color: #333;
-                margin-bottom: 20px;
-            }}
-            table {{
+    page_css = """
+            h1 {
+                color: #003781;
+                margin-bottom: 30px;
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.5px;
+            }
+            table {
                 width: 100%;
                 border-collapse: collapse;
                 margin: 20px 0;
-            }}
-            th, td {{
-                padding: 12px;
+            }
+            th, td {
+                padding: 14px 12px;
                 text-align: left;
-                border-bottom: 1px solid #ddd;
-            }}
-            th {{
+                border-bottom: 1px solid #e9ecef;
+            }
+            th {
                 background: #f8f9fa;
                 font-weight: 600;
-                color: #333;
-            }}
-            .badge {{
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-size: 12px;
+                color: #003781;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #dee2e6;
+                cursor: pointer;
+                user-select: none;
+                position: relative;
+            }
+            th.sortable:hover {
+                background: #e9ecef;
+            }
+            th.sortable::after {
+                content: ' ↕';
+                opacity: 0.5;
+                font-size: 10px;
+                margin-left: 5px;
+            }
+            th.sort-asc::after {
+                content: ' ↑';
+                opacity: 1;
+            }
+            th.sort-desc::after {
+                content: ' ↓';
+                opacity: 1;
+            }
+            td {
+                font-size: 14px;
+                color: #495057;
+            }
+            tr:hover {
+                background: #f8f9fa;
+            }
+            .badge {
+                padding: 4px 10px;
+                border-radius: 3px;
+                font-size: 11px;
                 font-weight: 600;
-            }}
-            .badge-active {{
-                background: #d4edda;
-                color: #155724;
-            }}
-            .badge-inactive {{
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .badge-active {
+                background: #d1e7dd;
+                color: #0f5132;
+            }
+            .badge-inactive {
                 background: #f8d7da;
-                color: #721c24;
-            }}
-            .btn-link {{
-                color: #007bff;
+                color: #842029;
+            }
+            .btn-link {
+                color: #003781;
                 text-decoration: none;
-                font-weight: 600;
-            }}
-            .btn-link:hover {{
-                text-decoration: underline;
-            }}
-            .btn-delete {{
+                font-weight: 500;
                 padding: 6px 12px;
+                border-radius: 4px;
+                transition: all 0.2s;
+            }
+            .btn-link:hover {
+                background: #f8f9fa;
+                color: #002d66;
+            }
+            .btn-delete {
+                padding: 6px 14px;
                 background: #dc3545;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 cursor: pointer;
                 font-size: 12px;
-                font-weight: 600;
-            }}
-            .btn-delete:hover {{
-                background: #c82333;
-            }}
-            .empty-state {{
+                font-weight: 500;
+                transition: all 0.2s;
+            }
+            .btn-delete:hover {
+                background: #bb2d3b;
+            }
+            .empty-state {
                 text-align: center;
-                padding: 40px;
-                color: #666;
-            }}
-            .empty-state-icon {{
+                padding: 60px 20px;
+                color: #999;
+            }
+            .empty-state-icon {
                 font-size: 48px;
                 margin-bottom: 10px;
-            }}
-            .header-actions {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-            }}
-            .btn-back {{
-                padding: 10px 20px;
-                background: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                text-decoration: none;
-                font-weight: 600;
-                display: inline-block;
-                transition: all 0.2s;
-            }}
-            .btn-back:hover {{
-                background: #545b62;
-                transform: translateY(-2px);
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header-actions">
-                <h1>📋 Templates & Mappings</h1>
-                <div>
-                    <a href="/mappings/upload" class="btn-link" style="margin-right: 10px; background: #28a745; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; display: inline-block;">📤 Upload Template</a>
-                    <a href="/" class="btn-back">← Back to Home</a>
-                </div>
-            </div>
-            <table>
+            }
+            """
+    
+    content = f"""
+            <h1>Templates & Mappings</h1>
+            
+            <table id="templatesTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Template ID</th>
-                        <th>Name</th>
-                        <th>Carrier</th>
-                        <th>File Type</th>
-                        <th>Mappings</th>
-                        <th>Status</th>
-                        <th>Created</th>
+                        <th class="sortable" data-column="id">ID</th>
+                        <th class="sortable" data-column="template_id">Template ID</th>
+                        <th class="sortable" data-column="name">Name</th>
+                        <th class="sortable" data-column="carrier">Carrier</th>
+                        <th class="sortable" data-column="file_type">File Type</th>
+                        <th class="sortable" data-column="mappings">Mappings</th>
+                        <th class="sortable" data-column="status">Status</th>
+                        <th class="sortable" data-column="created_at">Created</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="templatesTableBody">
                     {template_rows}
                 </tbody>
             </table>
-        </div>
-        
-        <script>
-            async function deleteTemplateWithConfirm(templateDbId, templateName, templateId) {{
-                const confirmed = confirm(`Are you sure you want to delete the template "${{templateName}}" (ID: ${{templateId}})?\\n\\nThis action cannot be undone.`);
-                
-                if (confirmed) {{
-                    try {{
-                        const response = await fetch(`/mappings/template/${{templateDbId}}/delete`, {{
-                            method: 'DELETE',
-                            headers: {{
-                                'Content-Type': 'application/json',
-                            }}
-                        }});
-                        
-                        if (response.ok) {{
-                            // Reload the page to show updated list
-                            window.location.reload();
-                        }} else {{
-                            const error = await response.json();
-                            alert(`Error deleting template: ${{error.detail || 'Unknown error'}}`);
-                        }}
-                    }} catch (error) {{
-                        alert(`Error deleting template: ${{error.message}}`);
-                    }}
-                }}
-            }}
-        </script>
-    </body>
-    </html>
     """
+    
+    additional_scripts = """
+        <script>
+            let allTemplatesData = [];
+            let currentSort = { column: 'created_at', direction: 'desc' };
+            
+            document.addEventListener('DOMContentLoaded', function() {
+                // Store original data
+                document.querySelectorAll('#templatesTableBody tr').forEach(row => {
+                    if (row.cells.length > 0) {
+                        const data = {
+                            id: row.cells[0].textContent.trim(),
+                            template_id: row.cells[1].querySelector('strong') ? row.cells[1].querySelector('strong').textContent.trim() : row.cells[1].textContent.trim(),
+                            name: row.cells[2].textContent.trim(),
+                            carrier: row.cells[3].textContent.trim(),
+                            file_type: row.cells[4].textContent.trim(),
+                            mappings: parseInt(row.cells[5].textContent.trim()) || 0,
+                            status: row.cells[6].querySelector('.badge') ? row.cells[6].querySelector('.badge').textContent.trim() : row.cells[6].textContent.trim(),
+                            created_at: row.cells[7].textContent.trim(),
+                            html: row.outerHTML
+                        };
+                        allTemplatesData.push(data);
+                    }
+                });
+                
+                // Sorting functionality
+                document.querySelectorAll('th.sortable').forEach(header => {
+                    header.addEventListener('click', function() {
+                        const column = this.dataset.column;
+                        
+                        // Toggle sort direction
+                        if (currentSort.column === column) {
+                            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                        } else {
+                            currentSort.column = column;
+                            currentSort.direction = 'asc';
+                        }
+                        
+                        // Update header classes
+                        document.querySelectorAll('th.sortable').forEach(h => {
+                            h.classList.remove('sort-asc', 'sort-desc');
+                        });
+                        this.classList.add(`sort-${currentSort.direction}`);
+                        
+                        applySort();
+                    });
+                });
+                
+                // Initialize sort indicator
+                document.querySelector('th[data-column="created_at"]').classList.add('sort-desc');
+                
+                // Attach initial delete button listeners
+                attachDeleteListeners();
+            });
+            
+            function applySort() {
+                // Sort data
+                const sortedData = [...allTemplatesData].sort((a, b) => {
+                    let aVal = a[currentSort.column];
+                    let bVal = b[currentSort.column];
+                    
+                    // Handle numeric columns
+                    if (currentSort.column === 'id' || currentSort.column === 'mappings') {
+                        aVal = parseInt(aVal) || 0;
+                        bVal = parseInt(bVal) || 0;
+                    } else {
+                        aVal = String(aVal || '').toLowerCase();
+                        bVal = String(bVal || '').toLowerCase();
+                    }
+                    
+                    if (currentSort.direction === 'asc') {
+                        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+                    } else {
+                        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+                    }
+                });
+                
+                // Update table
+                const tbody = document.getElementById('templatesTableBody');
+                tbody.innerHTML = sortedData.map(template => template.html).join('');
+                // Re-attach delete button listeners
+                attachDeleteListeners();
+            }
+            
+            function attachDeleteListeners() {
+                // Add event listeners to all delete buttons
+                document.querySelectorAll('.delete-template-btn').forEach(button => {
+                    if (!button.hasAttribute('data-listener-attached')) {
+                        button.setAttribute('data-listener-attached', 'true');
+                        button.addEventListener('click', async function() {
+                            const templateDbId = this.getAttribute('data-template-id');
+                            const templateName = this.getAttribute('data-template-name');
+                            const templateId = this.getAttribute('data-template-template-id');
+                            
+                            const confirmed = confirm(`Are you sure you want to delete the template "${templateName}" (ID: ${templateId})?\\n\\nThis action cannot be undone.`);
+                            
+                            if (confirmed) {
+                                try {
+                                    const response = await fetch(`/mappings/template/${templateDbId}/delete`, {
+                                        method: 'DELETE',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        }
+                                    });
+                                    
+                                    if (response.ok) {
+                                        // Reload the page to show updated list
+                                        window.location.reload();
+                                    } else {
+                                        const error = await response.json();
+                                        alert(`Error deleting template: ${error.detail || 'Unknown error'}`);
+                                    }
+                                } catch (error) {
+                                    alert(`Error deleting template: ${error.message}`);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        </script>
+    """
+    
+    html_content = wrap_with_layout(
+        content=content,
+        page_title="Templates & Mappings",
+        current_page="templates",
+        additional_css=page_css,
+        additional_scripts=additional_scripts
+    )
     
     return HTMLResponse(content=html_content)
 
@@ -1075,63 +1457,110 @@ async def view_template(
             </tr>
             """
     
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Template: {template.name}</title>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: #f5f5f5;
-                padding: 20px;
-            }}
-            .container {{
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                padding: 30px;
-            }}
-            h1 {{ color: #333; margin-bottom: 20px; }}
-            .template-info {{
+    status_badge = "Active" if template.active_flag else "Inactive"
+    status_class = "active" if template.active_flag else "inactive"
+    
+    page_css = """
+            h1 {
+                color: #003781;
+                margin-bottom: 20px;
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.5px;
+            }
+            h2 {
+                color: #003781;
+                margin-top: 30px;
+                margin-bottom: 15px;
+                font-size: 20px;
+                font-weight: 600;
+            }
+            .template-info {
                 background: #f8f9fa;
                 padding: 15px;
-                border-radius: 6px;
+                border-radius: 4px;
                 margin-bottom: 20px;
-            }}
-            .template-info p {{ margin: 5px 0; color: #666; }}
-            .template-info strong {{ color: #333; }}
-            table {{
+                border: 1px solid #e9ecef;
+            }
+            .template-info p {
+                margin: 5px 0;
+                color: #495057;
+                font-size: 14px;
+            }
+            .template-info strong {
+                color: #003781;
+                font-weight: 600;
+            }
+            .badge {
+                padding: 4px 10px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+            .badge-active {
+                background: #d1e7dd;
+                color: #0f5132;
+            }
+            .badge-inactive {
+                background: #f8d7da;
+                color: #842029;
+            }
+            table {
                 width: 100%;
                 border-collapse: collapse;
                 margin: 20px 0;
-            }}
-            th, td {{
-                padding: 12px;
+            }
+            th, td {
+                padding: 14px 12px;
                 text-align: left;
-                border-bottom: 1px solid #ddd;
-            }}
-            th {{
+                border-bottom: 1px solid #e9ecef;
+            }
+            th {
                 background: #f8f9fa;
                 font-weight: 600;
-                color: #333;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>📋 {template.name}</h1>
+                color: #003781;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #dee2e6;
+            }
+            td {
+                font-size: 14px;
+                color: #495057;
+            }
+            tr:hover {
+                background: #f8f9fa;
+            }
+            .actions {
+                margin-top: 30px;
+                display: flex;
+                gap: 12px;
+                align-items: center;
+            }
+            .btn-link {
+                color: #003781;
+                text-decoration: none;
+                font-weight: 500;
+                padding: 6px 12px;
+                border-radius: 4px;
+                transition: all 0.2s;
+            }
+            .btn-link:hover {
+                background: #f8f9fa;
+                color: #002d66;
+            }
+            """
+    
+    content = f"""
+            <h1>{template.name}</h1>
             
             <div class="template-info">
                 <p><strong>Template ID:</strong> {template.template_id}</p>
                 <p><strong>Carrier:</strong> {template.carrier or "N/A"}</p>
                 <p><strong>File Type:</strong> {template.file_type}</p>
-                <p><strong>Status:</strong> {"Active" if template.active_flag else "Inactive"}</p>
+                <p><strong>Status:</strong> <span class="badge badge-{status_class}">{status_badge}</span></p>
                 <p><strong>Version:</strong> {template.version}</p>
                 <p><strong>Created:</strong> {template.created_at.strftime("%Y-%m-%d %H:%M") if template.created_at else "N/A"}</p>
             </div>
@@ -1145,18 +1574,22 @@ async def view_template(
                     </tr>
                 </thead>
                 <tbody>
-                    {mapping_rows if mapping_rows else '<tr><td colspan="2">No mappings found</td></tr>'}
+                    {mapping_rows if mapping_rows else '<tr><td colspan="2" style="text-align: center; color: #6c757d; padding: 40px;">No mappings found</td></tr>'}
                 </tbody>
             </table>
             
-            <div style="margin-top: 20px;">
-                <a href="/mappings/template/{template.id}/edit" class="btn-link" style="margin-right: 15px; background: #007bff; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; display: inline-block;">✏️ Edit Template</a>
-                <a href="/mappings" class="btn-link">← Back to Templates</a>
+            <div class="actions">
+                <a href="/mappings/template/{template.id}/edit" class="btn-link">Edit Template</a>
+                <a href="/mappings" class="btn-link">Back to Templates</a>
             </div>
-        </div>
-    </body>
-    </html>
     """
+    
+    html_content = wrap_with_layout(
+        content=content,
+        page_title=f"Template: {template.name}",
+        current_page="templates",
+        additional_css=page_css
+    )
     
     return HTMLResponse(content=html_content)
 
@@ -1208,147 +1641,213 @@ async def edit_template(
         selected = "selected" if template.file_type.lower() == ft else ""
         file_type_options += f'<option value="{ft}" {selected}>{ft.title()}</option>'
     
-    html_content = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Edit Template: {template.name}</title>
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: #f5f5f5;
-                padding: 20px;
-            }}
-            .container {{
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                padding: 30px;
-            }}
-            h1 {{ color: #333; margin-bottom: 20px; }}
-            .template-info {{
+    page_css = """
+            h1 {
+                color: #003781;
+                margin-bottom: 20px;
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.5px;
+            }
+            h2 {
+                color: #003781;
+                margin-top: 30px;
+                margin-bottom: 15px;
+                font-size: 20px;
+                font-weight: 600;
+            }
+            h3 {
+                color: #495057;
+                margin-bottom: 10px;
+                font-size: 16px;
+                font-weight: 600;
+            }
+            .template-info {
                 background: #f8f9fa;
                 padding: 15px;
-                border-radius: 6px;
+                border-radius: 4px;
                 margin-bottom: 20px;
-            }}
-            .template-info p {{ margin: 5px 0; color: #666; }}
-            .template-info strong {{ color: #333; }}
-            .form-group {{
-                margin-bottom: 20px;
-            }}
-            .form-group label {{
-                display: block;
-                margin-bottom: 5px;
+                border: 1px solid #e9ecef;
+            }
+            .template-info p {
+                margin: 5px 0;
+                color: #495057;
+                font-size: 14px;
+            }
+            .template-info strong {
+                color: #003781;
                 font-weight: 600;
-                color: #333;
-            }}
-            .form-group input, .form-group select {{
+            }
+            .template-info em {
+                color: #6c757d;
+                font-size: 12px;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            .form-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+                color: #495057;
+                font-size: 14px;
+            }
+            .form-group input[type="text"],
+            .form-group input[type="checkbox"],
+            .form-group select {
                 width: 100%;
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 12px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
                 font-size: 14px;
-            }}
-            table {{
+                color: #495057;
+                background: white;
+            }
+            .form-group input[type="text"]:focus,
+            .form-group select:focus {
+                outline: none;
+                border-color: #003781;
+                box-shadow: 0 0 0 2px rgba(0, 55, 129, 0.1);
+            }
+            .form-group input[type="checkbox"] {
+                width: auto;
+                margin-right: 8px;
+            }
+            table {
                 width: 100%;
                 border-collapse: collapse;
                 margin: 20px 0;
-            }}
-            th, td {{
-                padding: 12px;
+            }
+            th, td {
+                padding: 14px 12px;
                 text-align: left;
-                border-bottom: 1px solid #ddd;
-            }}
-            th {{
+                border-bottom: 1px solid #e9ecef;
+            }
+            th {
                 background: #f8f9fa;
                 font-weight: 600;
-                color: #333;
-            }}
-            .mapping-select {{
+                color: #003781;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #dee2e6;
+            }
+            td {
+                font-size: 14px;
+                color: #495057;
+            }
+            tr:hover {
+                background: #f8f9fa;
+            }
+            .mapping-select {
                 width: 100%;
-                padding: 8px;
-                border: 1px solid #ddd;
+                padding: 8px 12px;
+                border: 1px solid #ced4da;
                 border-radius: 4px;
                 font-size: 14px;
-            }}
-            .btn-remove {{
-                padding: 6px 12px;
+                color: #495057;
+                background: white;
+            }
+            .mapping-select:focus {
+                outline: none;
+                border-color: #003781;
+                box-shadow: 0 0 0 2px rgba(0, 55, 129, 0.1);
+            }
+            .btn-remove {
+                padding: 6px 14px;
                 background: #dc3545;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 cursor: pointer;
                 font-size: 12px;
-            }}
-            .btn-remove:hover {{
-                background: #c82333;
-            }}
-            .actions {{
+                font-weight: 500;
+                transition: all 0.2s;
+            }
+            .btn-remove:hover {
+                background: #bb2d3b;
+            }
+            .actions {
                 margin-top: 30px;
                 display: flex;
-                gap: 10px;
-            }}
-            button[type="submit"], .btn-link {{
-                padding: 12px 24px;
+                gap: 12px;
+                align-items: center;
+            }
+            button[type="submit"] {
+                padding: 10px 20px;
+                background: #003781;
+                color: white;
                 border: none;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: 600;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: 500;
                 cursor: pointer;
+                transition: all 0.2s;
+            }
+            button[type="submit"]:hover {
+                background: #002d66;
+            }
+            .btn-link {
+                color: #003781;
                 text-decoration: none;
-                display: inline-block;
-            }}
-            button[type="submit"] {{
-                background: #007bff;
-                color: white;
-            }}
-            button[type="submit"]:hover {{
-                background: #0056b3;
-            }}
-            .btn-link {{
-                background: #6c757d;
-                color: white;
-            }}
-            .btn-link:hover {{
-                background: #545b62;
-            }}
-            .add-mapping {{
-                margin-top: 20px;
-                padding: 15px;
+                font-weight: 500;
+                padding: 6px 12px;
+                border-radius: 4px;
+                transition: all 0.2s;
+            }
+            .btn-link:hover {
                 background: #f8f9fa;
-                border-radius: 6px;
-            }}
-            .add-mapping input {{
-                margin-right: 10px;
-                flex: 1;
-            }}
-            .add-mapping button {{
+                color: #002d66;
+            }
+            .add-mapping {
+                margin-top: 20px;
+                padding: 20px;
+                background: #f8f9fa;
+                border: 1px solid #e9ecef;
+                border-radius: 4px;
+            }
+            .add-mapping input[type="text"],
+            .add-mapping select {
+                padding: 8px 12px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 14px;
+                color: #495057;
+                background: white;
+            }
+            .add-mapping input[type="text"]:focus,
+            .add-mapping select:focus {
+                outline: none;
+                border-color: #003781;
+                box-shadow: 0 0 0 2px rgba(0, 55, 129, 0.1);
+            }
+            .add-mapping button {
                 padding: 8px 16px;
-                background: #28a745;
+                background: #198754;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 cursor: pointer;
-            }}
-            .add-mapping button:hover {{
-                background: #218838;
-            }}
-            .flex-row {{
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.2s;
+            }
+            .add-mapping button:hover {
+                background: #157347;
+            }
+            .flex-row {
                 display: flex;
-                gap: 10px;
+                gap: 12px;
                 align-items: center;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>✏️ Edit Template: {template.name}</h1>
+            }
+            .flex-row input,
+            .flex-row select {
+                flex: 1;
+            }
+            """
+    
+    content = f"""
+            <h1>Edit Template: {template.name}</h1>
             
             <div class="template-info">
                 <p><strong>Template ID:</strong> {template.template_id} <em>(cannot be changed)</em></p>
@@ -1381,7 +1880,7 @@ async def edit_template(
                     </label>
                 </div>
                 
-                <h2 style="margin-top: 30px; margin-bottom: 15px;">Column Mappings</h2>
+                <h2>Column Mappings</h2>
                 <table id="mappingsTable">
                     <thead>
                         <tr>
@@ -1391,15 +1890,15 @@ async def edit_template(
                         </tr>
                     </thead>
                     <tbody>
-                        {mapping_rows if mapping_rows else '<tr><td colspan="3">No mappings found</td></tr>'}
+                        {mapping_rows if mapping_rows else '<tr><td colspan="3" style="text-align: center; color: #6c757d; padding: 40px;">No mappings found</td></tr>'}
                     </tbody>
                 </table>
                 
                 <div class="add-mapping">
-                    <h3 style="margin-bottom: 10px;">Add New Mapping</h3>
+                    <h3>Add New Mapping</h3>
                     <div class="flex-row">
-                        <input type="text" id="newColumn" placeholder="Source column name" style="flex: 1;">
-                        <select id="newCanonical" style="flex: 1;">
+                        <input type="text" id="newColumn" placeholder="Source column name">
+                        <select id="newCanonical">
                             <option value="">-- Select Canonical Field --</option>
                             {canonical_options_html}
                         </select>
@@ -1408,77 +1907,81 @@ async def edit_template(
                 </div>
                 
                 <div class="actions">
-                    <button type="submit">💾 Save Changes</button>
+                    <button type="submit">Save Changes</button>
                     <a href="/mappings/template/{template_id}" class="btn-link">Cancel</a>
-                    <a href="/mappings" class="btn-link">← Back to Templates</a>
+                    <a href="/mappings" class="btn-link">Back to Templates</a>
                 </div>
             </form>
-        </div>
-        
-        <script>
-            function removeMapping(btn) {{
-                const row = btn.closest('tr');
-                row.remove();
-            }}
             
-            function addMapping() {{
-                const columnName = document.getElementById('newColumn').value.trim();
-                const canonicalField = document.getElementById('newCanonical').value;
-                
-                if (!columnName) {{
-                    alert('Please enter a column name');
-                    return;
+            <script>
+                function removeMapping(btn) {{
+                    const row = btn.closest('tr');
+                    row.remove();
                 }}
                 
-                if (!canonicalField) {{
-                    alert('Please select a canonical field');
-                    return;
-                }}
-                
-                // Check if column already exists
-                const existingRows = document.querySelectorAll('#mappingsTable tbody tr');
-                for (let row of existingRows) {{
-                    const colName = row.querySelector('td:first-child strong')?.textContent;
-                    if (colName === columnName) {{
-                        alert('This column is already mapped');
+                function addMapping() {{
+                    const columnName = document.getElementById('newColumn').value.trim();
+                    const canonicalField = document.getElementById('newCanonical').value;
+                    
+                    if (!columnName) {{
+                        alert('Please enter a column name');
                         return;
                     }}
+                    
+                    if (!canonicalField) {{
+                        alert('Please select a canonical field');
+                        return;
+                    }}
+                    
+                    // Check if column already exists
+                    const existingRows = document.querySelectorAll('#mappingsTable tbody tr');
+                    for (let row of existingRows) {{
+                        const colName = row.querySelector('td:first-child strong')?.textContent;
+                        if (colName === columnName) {{
+                            alert('This column is already mapped');
+                            return;
+                        }}
+                    }}
+                    
+                    const canonicalLabel = document.querySelector(`#newCanonical option[value="${{canonicalField}}"]`).textContent;
+                    const optionsHtml = `{canonical_options_html}`;
+                    const selectedOptions = optionsHtml.replace(`value="${{canonicalField}}"`, `value="${{canonicalField}}" selected`);
+                    
+                    const tbody = document.querySelector('#mappingsTable tbody');
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = `
+                        <td><strong>${{columnName}}</strong></td>
+                        <td>
+                            <select name="mapping_${{columnName}}" class="mapping-select">
+                                <option value="">-- Not Mapped --</option>
+                                ${{selectedOptions}}
+                            </select>
+                        </td>
+                        <td>
+                            <button type="button" class="btn-remove" onclick="removeMapping(this)" data-column="${{columnName}}">Remove</button>
+                        </td>
+                    `;
+                    
+                    // Remove "No mappings found" message if present
+                    if (tbody.querySelector('td[colspan]')) {{
+                        tbody.innerHTML = '';
+                    }}
+                    
+                    tbody.appendChild(newRow);
+                    
+                    // Clear inputs
+                    document.getElementById('newColumn').value = '';
+                    document.getElementById('newCanonical').value = '';
                 }}
-                
-                const canonicalLabel = document.querySelector(`#newCanonical option[value="${{canonicalField}}"]`).textContent;
-                const optionsHtml = `{canonical_options_html}`;
-                const selectedOptions = optionsHtml.replace(`value="${{canonicalField}}"`, `value="${{canonicalField}}" selected`);
-                
-                const tbody = document.querySelector('#mappingsTable tbody');
-                const newRow = document.createElement('tr');
-                newRow.innerHTML = `
-                    <td><strong>${{columnName}}</strong></td>
-                    <td>
-                        <select name="mapping_${{columnName}}" class="mapping-select">
-                            <option value="">-- Not Mapped --</option>
-                            ${{selectedOptions}}
-                        </select>
-                    </td>
-                    <td>
-                        <button type="button" class="btn-remove" onclick="removeMapping(this)" data-column="${{columnName}}">Remove</button>
-                    </td>
-                `;
-                
-                // Remove "No mappings found" message if present
-                if (tbody.querySelector('td[colspan]')) {{
-                    tbody.innerHTML = '';
-                }}
-                
-                tbody.appendChild(newRow);
-                
-                // Clear inputs
-                document.getElementById('newColumn').value = '';
-                document.getElementById('newCanonical').value = '';
-            }}
-        </script>
-    </body>
-    </html>
+            </script>
     """
+    
+    html_content = wrap_with_layout(
+        content=content,
+        page_title=f"Edit Template: {template.name}",
+        current_page="templates",
+        additional_css=page_css
+    )
     
     return HTMLResponse(content=html_content)
 
