@@ -85,7 +85,7 @@ async def list_files(
                 </tr>
                 '''
         else:
-            files_rows = '<tr><td colspan="10"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No files found</p></div></td></tr>'
+            files_rows = '<tr><td colspan="10"><div class="empty-state"><p>No files found</p></div></td></tr>'
         
         page_css = """
                 h1 {
@@ -443,7 +443,7 @@ async def list_files(
                                 // Check if table is now empty
                                 const tbody = document.querySelector('table tbody');
                                 if (tbody && tbody.children.length === 0) {{
-                                    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No files found</p></div></td></tr>';
+                                    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><p>No files found</p></div></td></tr>';
                                 }}
                             }}, 300);
                         }} else {{
@@ -1445,7 +1445,7 @@ async def get_file_details(
                 rows_table += '</tr>'
             rows_table += '</tbody>'
         else:
-            rows_table = '<tbody><tr><td colspan="10" class="empty-state"><div class="empty-state-icon">📭</div><p>No rows processed yet</p></td></tr></tbody>'
+            rows_table = '<tbody><tr><td colspan="10" class="empty-state"><p>No rows processed yet</p></td></tr></tbody>'
         
         # Status badge
         status_class = bordereaux_file.status.value.replace("_", "-")
@@ -1823,7 +1823,7 @@ async def get_file_errors(
                 </tr>
                 '''
         else:
-            errors_rows = '<tr><td colspan="6"><div class="empty-state"><div class="empty-state-icon">✅</div><p>No validation errors</p></div></td></tr>'
+            errors_rows = '<tr><td colspan="6"><div class="empty-state"><p>No validation errors</p></div></td></tr>'
         
         page_css = """
                 h1 {

@@ -1323,7 +1323,7 @@ async def list_templates(
             </tr>
             """
     else:
-        template_rows = '<tr><td colspan="9"><div class="empty-state"><div class="empty-state-icon">📭</div><p>No templates found</p></div></td></tr>'
+        template_rows = '<tr><td colspan="9"><div class="empty-state"><p>No templates found</p></div></td></tr>'
     
     page_css = """
             h1 {
