@@ -209,6 +209,12 @@ class MappingSuggestionService:
         if should_use_ai and self.ai_service:
             try:
                 self.logger.info("Using AI for mapping suggestions", header_count=len(file_headers))
+                # Force flush
+                import logging
+                for h in logging.getLogger().handlers:
+                    if hasattr(h, 'flush'):
+                        h.flush()
+                print(f"[MAPPING] Using AI for mapping suggestions, headers: {len(file_headers)}")
                 ai_mappings, ai_scores = self.ai_service.suggest_mappings(file_headers, metadata)
                 
                 # Filter by minimum confidence

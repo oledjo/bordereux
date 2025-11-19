@@ -126,11 +126,20 @@ Return ONLY the JSON object, no additional text or explanation."""
         
         prompt = self._build_prompt(file_headers, metadata)
         
+        # Log with explicit flush
         self.logger.info(
             "Requesting AI suggestions",
             header_count=len(file_headers),
             model=self.model
         )
+        # Force immediate write
+        import logging
+        root = logging.getLogger()
+        for h in root.handlers:
+            if hasattr(h, 'flush'):
+                h.flush()
+        # Also log to console directly as backup
+        print(f"[AI] Requesting AI suggestions for {len(file_headers)} headers using {self.model}")
         
         try:
             with httpx.Client(timeout=timeout) as client:
@@ -165,6 +174,22 @@ Return ONLY the JSON object, no additional text or explanation."""
                 # Extract content from response
                 content = result["choices"][0]["message"]["content"].strip()
                 
+                # Log raw response from LLM (at INFO level for visibility)
+                self.logger.info(
+                    "Raw LLM response received",
+                    response_length=len(content),
+                    response_preview=content[:500] if len(content) > 500 else content,
+                    full_response=content  # Log full response for debugging
+                )
+                # Force immediate write
+                import logging
+                root = logging.getLogger()
+                for h in root.handlers:
+                    if hasattr(h, 'flush'):
+                        h.flush()
+                # Also log to console directly as backup
+                print(f"[AI] Raw LLM response received ({len(content)} chars): {content[:200]}...")
+                
                 # Remove markdown code blocks if present
                 if content.startswith("```json"):
                     content = content[7:]
@@ -177,6 +202,17 @@ Return ONLY the JSON object, no additional text or explanation."""
                 # Parse JSON response
                 ai_response = json.loads(content)
                 
+                # Log parsed response structure (at INFO level for visibility)
+                self.logger.info(
+                    "LLM response parsed",
+                    has_mappings="mappings" in ai_response,
+                    has_confidence_scores="confidence_scores" in ai_response,
+                    has_reasoning="reasoning" in ai_response,
+                    mappings_count=len(ai_response.get("mappings", {})),
+                    response_keys=list(ai_response.keys()),
+                    parsed_response=ai_response  # Log full parsed response
+                )
+                
                 mappings = ai_response.get("mappings", {})
                 confidence_scores = ai_response.get("confidence_scores", {})
                 
@@ -185,11 +221,25 @@ Return ONLY the JSON object, no additional text or explanation."""
                     if col not in confidence_scores:
                         confidence_scores[col] = 0.7  # Default confidence
                 
+                # Log full parsed response (at info level for visibility)
                 self.logger.info(
                     "AI suggestions received",
                     mapped_count=len(mappings),
-                    total_headers=len(file_headers)
+                    total_headers=len(file_headers),
+                    mappings=mappings,
+                    confidence_scores=confidence_scores,
+                    reasoning=ai_response.get("reasoning", {})
                 )
+                # Force immediate write
+                import logging
+                root = logging.getLogger()
+                for h in root.handlers:
+                    if hasattr(h, 'flush'):
+                        h.flush()
+                # Also log to console directly as backup
+                print(f"[AI] AI suggestions received: {len(mappings)} mappings")
+                print(f"[AI] Mappings: {mappings}")
+                print(f"[AI] Confidence scores: {confidence_scores}")
                 
                 return mappings, confidence_scores
                 

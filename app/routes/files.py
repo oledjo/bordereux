@@ -1297,6 +1297,14 @@ async def upload_file(
     """
     from app.models.bordereaux import FileStatus
     
+    # Log upload endpoint call
+    logger.info("=== UPLOAD ENDPOINT CALLED ===", file_count=len(files) if files else 0)
+    # Force flush to ensure log is written
+    import logging
+    for handler in logging.getLogger().handlers:
+        if hasattr(handler, 'flush'):
+            handler.flush()
+    
     if not files or len(files) == 0:
         raise HTTPException(status_code=400, detail="No files provided")
     

@@ -39,6 +39,9 @@ def setup_logging(
     # Remove existing handlers
     root_logger.handlers = []
     
+    # Ensure child loggers propagate to root logger
+    root_logger.propagate = True
+    
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
@@ -50,14 +53,25 @@ def setup_logging(
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         
-        file_handler = RotatingFileHandler(
+        # Use a regular FileHandler instead of RotatingFileHandler for immediate writes
+        # RotatingFileHandler can buffer writes
+        file_handler = logging.FileHandler(
             log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=5
+            mode='a',  # append mode
+            encoding='utf-8'
         )
         file_handler.setLevel(log_level)
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
+        
+        # Force immediate writes by flushing after each log
+        # This ensures logs appear in the file immediately
+        import atexit
+        def flush_logs():
+            for handler in root_logger.handlers:
+                if hasattr(handler, 'flush'):
+                    handler.flush()
+        atexit.register(flush_logs)
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -69,7 +83,10 @@ def get_logger(name: str) -> logging.Logger:
     Returns:
         Logger instance
     """
-    return logging.getLogger(name)
+    logger = logging.getLogger(name)
+    # Ensure logger propagates to root logger (which has the file handler)
+    logger.propagate = True
+    return logger
 
 
 class StructuredLogger:
@@ -100,7 +117,22 @@ class StructuredLogger:
     
     def info(self, message: str, **context) -> None:
         """Log info message with context."""
-        self.logger.info(self._format_message(message, **context))
+        formatted_msg = self._format_message(message, **context)
+        # Log to the underlying logger (child logger)
+        self.logger.info(formatted_msg)
+        # Also log directly to root logger to ensure file handler receives it
+        import logging
+        root_logger = logging.getLogger()
+        # Use the root logger's info method with the formatted message
+        # This ensures it goes through all root logger handlers (console + file)
+        root_logger.info(formatted_msg)
+        # Force flush all handlers immediately
+        for handler in root_logger.handlers:
+            if hasattr(handler, 'flush'):
+                try:
+                    handler.flush()
+                except:
+                    pass
     
     def warning(self, message: str, **context) -> None:
         """Log warning message with context."""
